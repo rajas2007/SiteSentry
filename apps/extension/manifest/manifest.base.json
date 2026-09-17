@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Site Sentry",
+  "version": "0.1.0",
+  "description": "Browser security and trust intelligence platform",
+  "action": {
+    "default_popup": "index.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "permissions": [
+    "storage",
+    "webNavigation",
+    "activeTab"
+  ]
+}

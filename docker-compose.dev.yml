@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./services/api
+    volumes:
+      - ./services/api:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  dashboard:
+    build:
+      context: ./apps/dashboard
+    volumes:
+      - ./apps/dashboard:/app
+      - /app/node_modules
+    command: npm run dev
