@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Site Sentry",
+  "version": "0.1.0",
+  "description": "Explainable AI for Intelligent Website Security, Privacy & Trust Analysis",
+  "action": {
+    "default_popup": "index.html"
+  },
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["assets/content.js"]
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*"
+  ]
+}

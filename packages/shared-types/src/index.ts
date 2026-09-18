@@ -1,2 +1,64 @@
-export * from "./api";
-export * from "./scores";
+export interface PageFeatures {
+  hasPasswordField: boolean;
+  hasLoginForm: boolean;
+  formCount: number;
+  externalLinkCount: number;
+  iframeCount: number;
+  scriptCount: number;
+  imageCount: number;
+  suspiciousKeywords: string[];
+  pageTextLength: number;
+  hasHttps: boolean;
+  hostnameLength: number;
+  subdomainCount: number;
+}
+
+export interface PageAnalysisRequest {
+  url: string;
+  title: string;
+  hostname: string;
+  features: PageFeatures;
+}
+
+export interface DecisionUI {
+  color: 'emerald' | 'amber' | 'rose' | 'slate';
+}
+
+export interface Decision {
+  action: 'allow' | 'warn' | 'block';
+  severity: 'low' | 'medium' | 'high';
+  ui: DecisionUI;
+}
+
+export interface PageAnalysisResponse {
+  analysis_id: string;
+  score: number;
+  severity: 'low' | 'medium' | 'high';
+  confidence: number;
+  threat_category: string;
+  recommendations: string[];
+  factors: string[];
+  decision: Decision;
+}
+
+export type ExtensionMessage =
+  | {
+      type: "ANALYZE_PAGE";
+      payload: PageAnalysisRequest;
+    }
+  | {
+      type: "GET_CURRENT_ANALYSIS";
+    };
+
+export type ExtensionMessageResponse =
+  | {
+      status: "SUCCESS";
+      data: PageAnalysisResponse;
+    }
+  | {
+      status: "ERROR";
+      error: string;
+    }
+  | {
+      status: "PENDING";
+    };

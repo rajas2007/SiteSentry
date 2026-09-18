@@ -1,19 +1,26 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+/// <reference types="vitest" />
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   build: {
     rollupOptions: {
       input: {
-        popup: 'index.html',
-        background: 'src/background/service-worker.ts',
-        content: 'src/content/content-script.ts'
+        popup: resolve(__dirname, 'index.html'),
+        background: resolve(__dirname, 'src/background/index.ts'),
+        content: resolve(__dirname, 'src/content/content-script.ts')
       },
       output: {
-        entryFileNames: '[name].js'
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name].[ext]'
       }
     }
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
   }
-})
+});
