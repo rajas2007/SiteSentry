@@ -65,6 +65,38 @@ class RedisCache:
             logger.warning(f"Redis set_analysis failed: {e}")
         return False
 
+    def _osint_key(self, domain: str) -> str:
+        return f"sitesentry:cache:osint:{domain.strip().lower()}"
+
+    async def get_osint(self, domain: str) -> dict[str, Any] | None:
+        """Retrieve cached OSINT threat intelligence for a domain."""
+        try:
+            client = self._get_client()
+            key = self._osint_key(domain)
+            raw = await client.get(key)
+            if raw:
+                return cast(dict[str, Any], json.loads(raw))
+        except (RedisError, ConnectionError, OSError, json.JSONDecodeError) as e:
+            logger.warning(f"Redis get_osint failed, proceeding without cache: {e}")
+        return None
+
+    async def set_osint(
+        self,
+        domain: str,
+        data: dict[str, Any],
+        ttl: int = 86400,
+    ) -> bool:
+        """Cache OSINT threat intelligence for a domain (default TTL: 24h)."""
+        try:
+            client = self._get_client()
+            key = self._osint_key(domain)
+            serialized = json.dumps(data)
+            await client.set(key, serialized, ex=ttl)
+            return True
+        except (RedisError, ConnectionError, OSError, TypeError) as e:
+            logger.warning(f"Redis set_osint failed: {e}")
+        return False
+
     async def close(self) -> None:
         """Close the Redis client connection pool."""
         if self._client is not None:

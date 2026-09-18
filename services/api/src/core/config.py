@@ -23,6 +23,11 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = "default_development_secret"
 
+    # Threat Intelligence API Keys & timeouts
+    GOOGLE_SAFE_BROWSING_API_KEY: str | None = None
+    VIRUSTOTAL_API_KEY: str | None = None
+    THREAT_INTEL_TIMEOUT_SECONDS: float = 2.5
+
 
 @lru_cache
 def get_settings() -> Settings:

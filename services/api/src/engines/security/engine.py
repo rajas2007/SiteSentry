@@ -1,22 +1,38 @@
 from typing import Any
 
+from src.engines.threat_intelligence.schemas import UnifiedThreatObject
 from src.schemas.analysis import PageAnalysisRequest
 
 
 class SecurityEngine:
-    """
-    Minimal deterministic security engine for MVP.
-    Analyzes structural page features to calculate a basic risk score.
-    """
+    """Security engine evaluating structural page features and external threat intelligence."""
 
-    def analyze(self, request: PageAnalysisRequest) -> dict[str, Any]:
+    def analyze(
+        self,
+        request: PageAnalysisRequest,
+        threat_intel: UnifiedThreatObject | None = None,
+    ) -> dict[str, Any]:
         score = 100
         factors: list[str] = []
-        confidence = 0.9  # High confidence because it's deterministic
+        confidence = 0.9  # Baseline confidence for deterministic heuristics
 
         f = request.features
 
-        # Positive indicators
+        # 1. Evaluate External Threat Intelligence Feeds
+        if threat_intel:
+            if threat_intel.blacklists_triggered:
+                score = min(score, 10)
+                confidence = max(confidence, threat_intel.confidence)
+                blacklist_names = ", ".join(threat_intel.blacklists_triggered)
+                factors.append(f"Domain is actively blacklisted by: {blacklist_names}")
+            elif threat_intel.total_vendor_flags > 0:
+                penalty = min(50, threat_intel.total_vendor_flags * 10)
+                score -= penalty
+                factors.append(
+                    f"Flagged by {threat_intel.total_vendor_flags} security vendors on VirusTotal"
+                )
+
+        # 2. Structural & Positive Heuristic Indicators
         if f.hasHttps:
             factors.append("Connection is encrypted (HTTPS)")
         else:
@@ -31,7 +47,7 @@ class SecurityEngine:
             score -= 10
             factors.append("Multiple subdomains detected")
 
-        # Risk indicators
+        # 3. Payload & DOM Indicators
         if f.hasPasswordField or f.hasLoginForm:
             if not f.hasHttps:
                 score -= 40
@@ -54,8 +70,12 @@ class SecurityEngine:
         # Ensure score boundaries
         score = max(0, min(100, score))
 
+        # 4. Determine Threat Category
         threat_category = "safe"
-        if score < 50:
+        if threat_intel and threat_intel.threat_categories:
+            primary_cat = threat_intel.threat_categories[0].lower().replace(" ", "_")
+            threat_category = primary_cat
+        elif score < 50:
             threat_category = (
                 "credential_theft" if f.hasPasswordField else "suspicious_content"
             )

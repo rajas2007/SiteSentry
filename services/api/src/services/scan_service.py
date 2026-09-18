@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.redis import RedisCache, get_cache
 from src.engines.decision.engine import DecisionEngine
 from src.engines.security.engine import SecurityEngine
+from src.engines.threat_intelligence.engine import ThreatIntelligenceEngine
+from src.engines.threat_intelligence.schemas import UnifiedThreatObject
 from src.models.domain_reputation import DomainReputation
 from src.models.scan import ScanHistory
 from src.schemas.analysis import PageAnalysisRequest, PageAnalysisResponse
@@ -20,10 +22,12 @@ class ScanService:
         self,
         security_engine: SecurityEngine | None = None,
         decision_engine: DecisionEngine | None = None,
+        threat_intel_engine: ThreatIntelligenceEngine | None = None,
         cache: RedisCache | None = None,
     ) -> None:
         self.security_engine = security_engine or SecurityEngine()
         self.decision_engine = decision_engine or DecisionEngine()
+        self.threat_intel_engine = threat_intel_engine or ThreatIntelligenceEngine()
         self.cache = cache or get_cache()
 
     async def analyze_page(
@@ -39,8 +43,17 @@ class ScanService:
             logger.info(f"Cache hit for URL: {url_str}")
             return PageAnalysisResponse(**cached)
 
-        # 2. Run engine analysis pipeline
-        security_result = self.security_engine.analyze(request)
+        # 2. Query external Threat Intelligence Feeds (Google Safe Browsing & VirusTotal)
+        threat_intel = await self.threat_intel_engine.lookup(
+            url=url_str,
+            domain=request.hostname,
+        )
+
+        # 3. Run engine analysis pipeline with external threat signals
+        security_result = self.security_engine.analyze(
+            request,
+            threat_intel=threat_intel,
+        )
         decision_result = self.decision_engine.generate_decision(security_result)
 
         analysis_id = str(uuid.uuid4())
@@ -55,12 +68,12 @@ class ScanService:
             decision=decision_result["decision"],
         )
 
-        # 3. Store in Redis cache
+        # 4. Store in Redis cache
         await self.cache.set_analysis(url_str, response.model_dump(mode="json"))
 
-        # 4. Asynchronously persist to PostgreSQL if DB session is provided
+        # 5. Asynchronously persist to PostgreSQL if DB session is provided
         if db is not None:
-            await self._persist_scan(db, request, response)
+            await self._persist_scan(db, request, response, threat_intel=threat_intel)
 
         return response
 
@@ -69,6 +82,7 @@ class ScanService:
         db: AsyncSession,
         request: PageAnalysisRequest,
         response: PageAnalysisResponse,
+        threat_intel: UnifiedThreatObject | None = None,
     ) -> None:
         try:
             now = datetime.now(UTC)
@@ -86,6 +100,9 @@ class ScanService:
                     "factors": response.factors,
                     "decision": response.decision.model_dump(),
                     "confidence": response.confidence,
+                    "threat_intelligence": (
+                        threat_intel.model_dump(mode="json") if threat_intel else None
+                    ),
                 },
                 scanned_at=now,
             )

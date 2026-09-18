@@ -11,7 +11,7 @@
 
 ## Phase 2: Intelligence & Explainability (Months 3-4)
 **Goal:** Integrate AI/ML and OSINT feeds to provide real security value and XAI.
-- [ ] **Security Engine:** Integrate VirusTotal API and Google Safe Browsing API.
+- [x] **Security Engine:** Integrate VirusTotal API and Google Safe Browsing API.
 - [ ] **Privacy Engine:** Integrate tracker blocking lists (DuckDuckGo Radar).
 - [ ] **AI Engine (ML):** Train an initial XGBoost model on an open-source phishing dataset. Deploy model using FastAPI.
 - [ ] **AI Engine (XAI):** Integrate SHAP to extract feature importance and wire it through the Scoring Engine to the UI.
