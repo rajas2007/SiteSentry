@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     )
 
     API_ENV: str = "development"
-    API_HOST: str = "0.0.0.0"
+    API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
 
     # PostgreSQL / SQLite async connection string
