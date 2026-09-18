@@ -1,0 +1,45 @@
+name: Repository CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ci.yml'
+      - 'package.json'
+      - 'docker-compose.yml'
+      - 'Makefile'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  validate-structure:
+    name: Validate Repository Structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required structural files
+        run: |
+          echo "Validating essential monorepo structure..."
+          test -f package.json || (echo "Missing package.json" && exit 1)
+          test -f docker-compose.yml || (echo "Missing docker-compose.yml" && exit 1)
+          test -f Makefile || (echo "Missing Makefile" && exit 1)
+          test -d services/api || (echo "Missing services/api" && exit 1)
+          test -d apps/dashboard || (echo "Missing apps/dashboard" && exit 1)
+          test -d apps/extension || (echo "Missing apps/extension" && exit 1)
+          echo "Structure validation passed."
+
+      - name: Verify Lockfile
+        run: |
+          test -f package-lock.json || (echo "Missing package-lock.json" && exit 1)
+          echo "Lockfile exists."

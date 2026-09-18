@@ -1,0 +1,57 @@
+name: Dashboard CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/dashboard/**'
+      - 'packages/ui/**'
+      - 'packages/shared-types/**'
+      - '.github/workflows/frontend.yml'
+      - 'package.json'
+      - 'package-lock.json'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard-checks:
+    name: Dashboard Lint, Typecheck, Test, and Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: dashboard-lint (ESLint)
+        working-directory: apps/dashboard
+        run: npm run lint --if-present
+
+      - name: dashboard-typecheck (TypeScript)
+        working-directory: apps/dashboard
+        run: npm run typecheck --if-present
+
+      - name: dashboard-test (Vitest)
+        working-directory: apps/dashboard
+        run: npm run test --if-present
+
+      - name: dashboard-build (Next.js)
+        working-directory: apps/dashboard
+        run: npm run build
