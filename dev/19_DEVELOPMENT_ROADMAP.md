@@ -2,11 +2,11 @@
 
 ## Phase 1: Foundation & MVP (Months 1-2)
 **Goal:** Build a functional end-to-end scanning system with a basic extension and API.
-- [ ] Set up monorepo (`apps/dashboard`, `apps/extension`, `services/api`).
-- [ ] Establish CI/CD pipelines (GitHub Actions) for linting and basic testing.
-- [ ] **Backend:** Build FastAPI Gateway, PostgreSQL schema, and Redis caching layer.
-- [ ] **Security Engine:** Implement basic heuristics (URL length, HTTPS check, DOM password fields).
-- [ ] **Extension:** Build MV3 background worker, DOM extraction script, and basic Popup UI (hardcoded mock data, then wire to API).
+- [x] Set up monorepo (`apps/dashboard`, `apps/extension`, `services/api`).
+- [x] Establish CI/CD pipelines (GitHub Actions) for linting and basic testing.
+- [x] **Backend:** Build FastAPI Gateway, PostgreSQL schema, and Redis caching layer.
+- [x] **Security Engine:** Implement basic heuristics (URL length, HTTPS check, DOM password fields).
+- [x] **Extension:** Build MV3 background worker, DOM extraction script, and basic Popup UI (hardcoded mock data, then wire to API).
 - [ ] Deploy API to Railway/Render and DB to Supabase/RDS.
 
 ## Phase 2: Intelligence & Explainability (Months 3-4)
