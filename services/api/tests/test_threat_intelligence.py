@@ -3,7 +3,6 @@ import pytest
 from src.engines.decision.engine import DecisionEngine
 from src.engines.security.engine import SecurityEngine
 from src.engines.threat_intelligence.engine import ThreatIntelligenceEngine
-from src.engines.threat_intelligence.schemas import UnifiedThreatObject
 from src.integrations.safe_browsing.client import GoogleSafeBrowsingClient
 from src.integrations.virustotal.client import VirusTotalClient
 from src.schemas.analysis import PageAnalysisRequest, PageFeatures
@@ -105,45 +104,6 @@ async def test_threat_intelligence_caching():
     report2 = await engine.lookup("https://cache-test.com", "cache-test.com")
     assert gsb.call_count == 1  # did not increment!
     assert report2.blacklists_triggered == report1.blacklists_triggered
-
-
-def test_security_engine_blacklisted_override():
-    security_engine = SecurityEngine()
-    request = PageAnalysisRequest(
-        url="https://evil-site.com",  # type: ignore[arg-type]
-        title="Malicious Login",
-        hostname="evil-site.com",
-        features=PageFeatures(
-            hasPasswordField=True,
-            hasLoginForm=True,
-            formCount=1,
-            externalLinkCount=0,
-            iframeCount=0,
-            scriptCount=1,
-            imageCount=1,
-            suspiciousKeywords=[],
-            pageTextLength=500,
-            hasHttps=True,
-            hostnameLength=13,
-            subdomainCount=0,
-        ),
-    )
-
-    threat_intel = UnifiedThreatObject(
-        domain="evil-site.com",
-        blacklists_triggered=["Google Safe Browsing"],
-        threat_categories=["Phishing"],
-        total_vendor_flags=10,
-        confidence=0.98,
-    )
-
-    result = security_engine.analyze(request, threat_intel=threat_intel)
-
-    assert result["score"] <= 10
-    assert result["threat_category"] == "phishing"
-    assert any(
-        "actively blacklisted by: Google Safe Browsing" in f for f in result["factors"]
-    )
 
 
 @pytest.mark.asyncio

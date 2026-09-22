@@ -23,6 +23,9 @@ def base_features():
     )
 
 
+from src.engines.score_fusion.engine import ScoreFusionEngine
+
+
 def test_security_engine_normal_https(base_features):
     req = PageAnalysisRequest(
         url="https://example.com",
@@ -31,9 +34,10 @@ def test_security_engine_normal_https(base_features):
         features=base_features,
     )
     engine = SecurityEngine()
-    res = engine.analyze(req)
-    assert res["score"] == 100
-    assert res["threat_category"] == "safe"
+    signals = engine.analyze(req)
+    signal_ids = [s["id"] for s in signals]
+    assert "https_enabled" in signal_ids
+    assert "multiple_subdomains" not in signal_ids
 
 
 def test_security_engine_http_login(base_features):
@@ -46,9 +50,10 @@ def test_security_engine_http_login(base_features):
         features=base_features,
     )
     engine = SecurityEngine()
-    res = engine.analyze(req)
-    assert res["score"] < 50
-    assert res["threat_category"] == "credential_theft"
+    signals = engine.analyze(req)
+    signal_ids = [s["id"] for s in signals]
+    assert "no_https" in signal_ids
+    assert "insecure_login" in signal_ids
 
 
 def test_security_engine_suspicious_keywords(base_features):
@@ -60,9 +65,42 @@ def test_security_engine_suspicious_keywords(base_features):
         features=base_features,
     )
     engine = SecurityEngine()
-    res = engine.analyze(req)
-    assert res["score"] == 85  # 100 - 15
-    assert res["threat_category"] == "safe"  # still >= 80
+    signals = engine.analyze(req)
+    signal_ids = [s["id"] for s in signals]
+    assert "suspicious_keywords" in signal_ids
+
+
+def test_score_fusion_engine_clean():
+    engine = ScoreFusionEngine()
+    signals = [
+        {"id": "https_enabled", "description": "Connection is encrypted (HTTPS)"}
+    ]
+    res = engine.fuse(signals)
+    assert res["score"] == 100
+    assert res["threat_category"] == "safe"
+    assert res["confidence"] == 0.9
+
+
+def test_score_fusion_engine_suspicious():
+    engine = ScoreFusionEngine()
+    signals = [
+        {"id": "no_https", "description": "Connection is unencrypted (HTTP)"},
+        {"id": "suspicious_keywords", "description": "Keywords detected"},
+    ]
+    res = engine.fuse(signals)
+    assert res["score"] == 55  # 100 - 30 - 15
+    assert res["threat_category"] == "elevated_risk"
+
+
+def test_score_fusion_engine_high_risk():
+    engine = ScoreFusionEngine()
+    signals = [
+        {"id": "no_https", "description": "Connection is unencrypted (HTTP)"},
+        {"id": "insecure_login", "description": "Login without HTTPs"},
+    ]
+    res = engine.fuse(signals)
+    assert res["score"] == 30  # 100 - 30 - 40
+    assert res["threat_category"] == "credential_theft"
 
 
 def test_decision_engine_boundaries():

@@ -17,17 +17,22 @@ from src.schemas.analysis import PageAnalysisRequest, PageAnalysisResponse
 logger = logging.getLogger(__name__)
 
 
+from src.engines.score_fusion.engine import ScoreFusionEngine
+
+
 class ScanService:
     def __init__(
         self,
         security_engine: SecurityEngine | None = None,
         decision_engine: DecisionEngine | None = None,
         threat_intel_engine: ThreatIntelligenceEngine | None = None,
+        score_fusion_engine: ScoreFusionEngine | None = None,
         cache: RedisCache | None = None,
     ) -> None:
         self.security_engine = security_engine or SecurityEngine()
         self.decision_engine = decision_engine or DecisionEngine()
         self.threat_intel_engine = threat_intel_engine or ThreatIntelligenceEngine()
+        self.score_fusion_engine = score_fusion_engine or ScoreFusionEngine()
         self.cache = cache or get_cache()
 
     async def analyze_page(
@@ -49,12 +54,16 @@ class ScanService:
             domain=request.hostname,
         )
 
-        # 3. Run engine analysis pipeline with external threat signals
-        security_result = self.security_engine.analyze(
-            request,
-            threat_intel=threat_intel,
+        # 3. Run security engine to extract structural signals
+        security_signals = self.security_engine.analyze(request)
+
+        # 4. Fuse signals and external threat intel into one authoritative score
+        fusion_result = self.score_fusion_engine.fuse(
+            security_signals=security_signals, threat_intel=threat_intel
         )
-        decision_result = self.decision_engine.generate_decision(security_result)
+
+        # 5. Generate decision state from fused score
+        decision_result = self.decision_engine.generate_decision(fusion_result)
 
         from src.schemas.analysis import (
             ProviderStatusResponse,
@@ -78,12 +87,12 @@ class ScanService:
         analysis_id = str(uuid.uuid4())
         response = PageAnalysisResponse(
             analysis_id=analysis_id,
-            score=security_result["score"],
+            score=fusion_result["score"],
             severity=decision_result["severity"],
-            confidence=security_result["confidence"],
-            threat_category=security_result["threat_category"],
+            confidence=fusion_result["confidence"],
+            threat_category=fusion_result["threat_category"],
             recommendations=decision_result["recommendations"],
-            factors=security_result["factors"],
+            factors=fusion_result["factors"],
             decision=decision_result["decision"],
             threat_intelligence=ti_response,
         )
