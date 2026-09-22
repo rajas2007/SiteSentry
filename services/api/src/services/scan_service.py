@@ -126,6 +126,9 @@ class ScanService:
                 db.add(new_rep)
 
             await db.commit()
-        except (SQLAlchemyError, OSError) as e:
-            logger.error(f"Failed to persist scan history to DB: {e}")
+        except (SQLAlchemyError, OSError):
+            logger.exception(
+                f"Failed to persist scan history to DB for analysis_id={response.analysis_id} "
+                f"domain={request.hostname}"
+            )
             await db.rollback()
