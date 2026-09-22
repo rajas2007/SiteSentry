@@ -56,6 +56,25 @@ class ScanService:
         )
         decision_result = self.decision_engine.generate_decision(security_result)
 
+        from src.schemas.analysis import (
+            ProviderStatusResponse,
+            ThreatIntelligenceResponse,
+        )
+
+        ti_response = None
+        if threat_intel and threat_intel.sources:
+            ti_response = ThreatIntelligenceResponse(
+                sources=[
+                    ProviderStatusResponse(
+                        provider=s.provider,
+                        status=s.status,
+                        categories=s.categories,
+                        summary=s.summary,
+                    )
+                    for s in threat_intel.sources
+                ]
+            )
+
         analysis_id = str(uuid.uuid4())
         response = PageAnalysisResponse(
             analysis_id=analysis_id,
@@ -66,6 +85,7 @@ class ScanService:
             recommendations=decision_result["recommendations"],
             factors=security_result["factors"],
             decision=decision_result["decision"],
+            threat_intelligence=ti_response,
         )
 
         # 4. Store in Redis cache

@@ -72,15 +72,45 @@ export default function App() {
         </section>
 
         <section className="mb-4">
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Key Factors</h2>
-          <ul className="text-sm space-y-1">
-            {factors.map((factor, i) => (
-              <li key={i} className="flex items-start">
-                <span className="mr-2 text-gray-400">•</span>
-                <span className="text-gray-700">{factor}</span>
-              </li>
-            ))}
-          </ul>
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Why this score?</h2>
+          
+          {analysis.threat_intelligence && analysis.threat_intelligence.sources.length > 0 && (
+            <div className="mb-3">
+              <h3 className="text-xs font-semibold text-gray-700 mb-2">Threat Intelligence</h3>
+              <div className="space-y-2">
+                {analysis.threat_intelligence.sources.map((source, i) => (
+                  <div key={i} className="bg-gray-50 border border-gray-100 p-2 rounded text-xs">
+                    <div className="flex justify-between font-semibold mb-1">
+                      <span className="text-gray-800">{source.provider}</span>
+                      <span className={`${source.status === 'detected' ? 'text-rose-600' : source.status === 'clean' ? 'text-emerald-600' : 'text-gray-500'} capitalize`}>
+                        {source.status}
+                      </span>
+                    </div>
+                    <p className="text-gray-600">{source.summary}</p>
+                    {source.categories && source.categories.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {source.categories.map((cat, j) => (
+                          <span key={j} className="bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-sm" style={{fontSize: '0.65rem'}}>{cat}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-xs font-semibold text-gray-700 mb-1">Other Security Factors</h3>
+            <ul className="text-xs space-y-1 text-gray-700">
+              {factors.map((factor, i) => (
+                <li key={i} className="flex items-start">
+                  <span className="mr-2 text-gray-400">•</span>
+                  <span>{factor}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
 
         <section>

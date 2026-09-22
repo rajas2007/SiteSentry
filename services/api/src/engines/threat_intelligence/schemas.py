@@ -1,4 +1,13 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+
+class ProviderStatus(BaseModel):
+    provider: str
+    status: Literal["clean", "detected", "unavailable"]
+    categories: list[str] = Field(default_factory=list)
+    summary: str = ""
 
 
 class UnifiedThreatObject(BaseModel):
@@ -11,3 +20,4 @@ class UnifiedThreatObject(BaseModel):
     registrar_reputation: str = "unknown"
     confidence: float = 0.9
     data_completeness: bool = True
+    sources: list[ProviderStatus] = Field(default_factory=list)

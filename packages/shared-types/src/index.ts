@@ -30,6 +30,17 @@ export interface Decision {
   ui: DecisionUI;
 }
 
+export interface ProviderStatusResponse {
+  provider: string;
+  status: 'clean' | 'detected' | 'unavailable';
+  categories: string[];
+  summary: string;
+}
+
+export interface ThreatIntelligenceResponse {
+  sources: ProviderStatusResponse[];
+}
+
 export interface PageAnalysisResponse {
   analysis_id: string;
   score: number;
@@ -39,6 +50,7 @@ export interface PageAnalysisResponse {
   recommendations: string[];
   factors: string[];
   decision: Decision;
+  threat_intelligence?: ThreatIntelligenceResponse;
 }
 
 export type ExtensionMessage =

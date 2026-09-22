@@ -191,3 +191,15 @@ async def test_scan_service_with_threat_intelligence():
     assert response.severity == "high"
     assert response.decision.action == "block"
     assert response.threat_category == "malware"
+
+    assert response.threat_intelligence is not None
+    sources = response.threat_intelligence.sources
+    assert len(sources) == 2
+
+    gsb_source = next(s for s in sources if s.provider == "Google Safe Browsing")
+    assert gsb_source.status == "detected"
+    assert "Malware" in gsb_source.categories
+
+    vt_source = next(s for s in sources if s.provider == "VirusTotal")
+    assert vt_source.status == "detected"
+    assert "Malware" in vt_source.categories

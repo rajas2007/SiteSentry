@@ -35,6 +35,17 @@ class Decision(BaseModel):
     ui: DecisionUI
 
 
+class ProviderStatusResponse(BaseModel):
+    provider: str
+    status: Literal["clean", "detected", "unavailable"]
+    categories: list[str]
+    summary: str
+
+
+class ThreatIntelligenceResponse(BaseModel):
+    sources: list[ProviderStatusResponse]
+
+
 class PageAnalysisResponse(BaseModel):
     analysis_id: str
     score: int
@@ -44,3 +55,4 @@ class PageAnalysisResponse(BaseModel):
     recommendations: list[str]
     factors: list[str]
     decision: Decision
+    threat_intelligence: ThreatIntelligenceResponse | None = None
