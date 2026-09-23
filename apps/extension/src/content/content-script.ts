@@ -1,5 +1,10 @@
-import { extractPageFeatures } from './dom-extractor';
+import { extractPageFeatures, extractPrivacyPolicyText, getThirdPartyCookieCount } from './dom-extractor';
 import { PageAnalysisRequest, ExtensionMessage, ExtensionMessageResponse } from '@site-sentry/shared-types';
+import { WarningOverlay } from './warning-overlay';
+import { applyCredentialIntervention } from './credential-intervention';
+
+const overlay = new WarningOverlay();
+let restoreCredFn: (() => void) | null = null;
 
 async function analyzeCurrentPage() {
   const request: PageAnalysisRequest = {
@@ -7,6 +12,8 @@ async function analyzeCurrentPage() {
     title: document.title,
     hostname: window.location.hostname,
     features: extractPageFeatures(),
+    privacy_policy_text: extractPrivacyPolicyText(),
+    third_party_cookie_count: getThirdPartyCookieCount(),
   };
 
   const message: ExtensionMessage = {
@@ -17,7 +24,18 @@ async function analyzeCurrentPage() {
   try {
     const response = await chrome.runtime.sendMessage(message) as ExtensionMessageResponse;
     console.log('[Site Sentry] Analysis response:', response);
-    // In a future MVP, we could trigger a DOM warning-overlay here if HIGH risk
+    
+    if (response.status === 'SUCCESS' && response.data.severity === 'high') {
+      overlay.show(response.data, () => {
+        // Restore password inputs on continue
+        if (restoreCredFn) restoreCredFn();
+      });
+    }
+    
+    // Credential Theft Intervention
+    if (response.status === 'SUCCESS') {
+      restoreCredFn = applyCredentialIntervention(response.data);
+    }
   } catch (error) {
     console.error('[Site Sentry] Failed to send analysis message:', error);
   }
@@ -29,3 +47,13 @@ if (document.readyState === 'loading') {
 } else {
   analyzeCurrentPage();
 }
+
+// Simple SPA navigation handler
+let currentUrl = window.location.href;
+setInterval(() => {
+  if (window.location.href !== currentUrl) {
+    currentUrl = window.location.href;
+    overlay.dismiss();
+    analyzeCurrentPage();
+  }
+}, 1000);

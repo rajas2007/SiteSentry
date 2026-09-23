@@ -83,3 +83,40 @@ export function extractPageFeatures(): PageFeatures {
     subdomainCount
   };
 }
+
+export function extractPrivacyPolicyText(): string | null {
+  // If the current URL is explicitly a privacy policy, extract the body
+  if (
+    window.location.href.toLowerCase().includes('privacy') ||
+    window.location.pathname.toLowerCase().includes('policy')
+  ) {
+    const text = document.body.textContent || '';
+    return text.substring(0, 4000);
+  }
+
+  // Otherwise, attempt to find a privacy policy section or link on the page
+  const links = Array.from(document.querySelectorAll('a'));
+  links.some(link => 
+    link.textContent?.toLowerCase().includes('privacy') ||
+    link.href.toLowerCase().includes('privacy')
+  );
+
+  // If there's a privacy policy section embedded in the page itself, find it
+  // (e.g. some SPAs or modals have sections labeled 'privacy-policy')
+  const privacyElement = document.querySelector('[id*="privacy" i], [class*="privacy" i]');
+  if (privacyElement && privacyElement.textContent && privacyElement.textContent.length > 100) {
+     return privacyElement.textContent.substring(0, 4000);
+  }
+
+  return null;
+}
+
+export function getThirdPartyCookieCount(): number | undefined {
+  // We cannot reliably determine third-party cookies from a content script
+  // securely without extensive permissions (chrome.cookies) which would require
+  // host permissions for all domains.
+  // 
+  // Returning undefined to explicitly state we don't know, rather than fake 0.
+  // The API contract only supports integer/null/undefined.
+  return undefined;
+}

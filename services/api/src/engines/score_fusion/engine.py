@@ -1,11 +1,12 @@
 from typing import Any
 
+from src.engines.privacy.schemas import PrivacyAssessment
 from src.engines.threat_intelligence.schemas import UnifiedThreatObject
 
 
 class ScoreFusionEngine:
     """
-    Fuses security signals and threat intelligence into one unified score.
+    Fuses security signals, threat intelligence, and privacy intelligence into one unified score.
     Produces deterministic results with clear explanatory factors.
     """
 
@@ -13,6 +14,7 @@ class ScoreFusionEngine:
         self,
         security_signals: list[dict[str, str]],
         threat_intel: UnifiedThreatObject | None = None,
+        privacy_intel: PrivacyAssessment | None = None,
     ) -> dict[str, Any]:
         score = 100
         factors = []
@@ -68,7 +70,24 @@ class ScoreFusionEngine:
                 score -= 15
                 factors.append(desc)
 
-        # 3. Finalize Score & Category Boundaries
+        # 3. Fuse Privacy Intelligence
+        if privacy_intel:
+            for finding in privacy_intel.findings:
+                if finding.severity == "critical":
+                    score -= 40
+                    factors.append(f"Critical Privacy Risk: {finding.category}")
+                    if threat_category == "safe":
+                        threat_category = "privacy_abuse"
+                elif finding.severity == "high":
+                    score -= 20
+                    factors.append(f"High Privacy Risk: {finding.category}")
+                    if threat_category == "safe":
+                        threat_category = "privacy_abuse"
+                elif finding.severity == "medium":
+                    score -= 10
+                    factors.append(f"Privacy Risk: {finding.category}")
+
+        # 4. Finalize Score & Category Boundaries
         score = max(0, min(100, score))
 
         if threat_category == "safe":

@@ -149,3 +149,24 @@ def test_scan_history_domain_filter():
         data = response.json()
         assert data["total"] == 0
         assert len(data["items"]) == 0
+
+
+def test_analyze_endpoint_privacy_fields():
+    # Because LLM is mocked or returns unavailable without API key,
+    # the tracker logic will still fire and deduct points for tracking cookies.
+    with TestClient(app) as test_client:
+        payload = {
+            **SAMPLE_PAYLOAD,
+            "url": "https://privacy-test.com",
+            "hostname": "privacy-test.com",
+            "privacy_policy_text": "We sell data",
+            "third_party_cookie_count": 15,
+        }
+        response = test_client.post("/api/v1/analyze", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+
+        # 15 third-party cookies -> High Privacy Risk -> -20 penalty -> score=80 (from 100)
+        # However, threat_category might change to "privacy_abuse" if the engine does that
+        assert data["score"] <= 80
+        assert "High Privacy Risk: Tracking" in data["factors"]

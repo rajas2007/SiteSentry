@@ -23,6 +23,8 @@ class PageAnalysisRequest(BaseModel):
     title: str
     hostname: str
     features: PageFeatures
+    privacy_policy_text: str | None = None
+    third_party_cookie_count: int = 0
 
 
 class DecisionUI(BaseModel):

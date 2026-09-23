@@ -18,6 +18,8 @@ export interface PageAnalysisRequest {
   title: string;
   hostname: string;
   features: PageFeatures;
+  privacy_policy_text?: string | null;
+  third_party_cookie_count?: number;
 }
 
 export interface DecisionUI {

@@ -17,6 +17,7 @@ from src.schemas.analysis import PageAnalysisRequest, PageAnalysisResponse
 logger = logging.getLogger(__name__)
 
 
+from src.engines.privacy.engine import PrivacyIntelligenceEngine
 from src.engines.score_fusion.engine import ScoreFusionEngine
 
 
@@ -27,12 +28,14 @@ class ScanService:
         decision_engine: DecisionEngine | None = None,
         threat_intel_engine: ThreatIntelligenceEngine | None = None,
         score_fusion_engine: ScoreFusionEngine | None = None,
+        privacy_engine: PrivacyIntelligenceEngine | None = None,
         cache: RedisCache | None = None,
     ) -> None:
         self.security_engine = security_engine or SecurityEngine()
         self.decision_engine = decision_engine or DecisionEngine()
         self.threat_intel_engine = threat_intel_engine or ThreatIntelligenceEngine()
         self.score_fusion_engine = score_fusion_engine or ScoreFusionEngine()
+        self.privacy_engine = privacy_engine or PrivacyIntelligenceEngine()
         self.cache = cache or get_cache()
 
     async def analyze_page(
@@ -54,15 +57,23 @@ class ScanService:
             domain=request.hostname,
         )
 
-        # 3. Run security engine to extract structural signals
-        security_signals = self.security_engine.analyze(request)
-
-        # 4. Fuse signals and external threat intel into one authoritative score
-        fusion_result = self.score_fusion_engine.fuse(
-            security_signals=security_signals, threat_intel=threat_intel
+        # 3. Privacy Intelligence Analysis
+        privacy_intel = await self.privacy_engine.analyze(
+            raw_page_text=request.privacy_policy_text,
+            third_party_cookie_count=request.third_party_cookie_count,
         )
 
-        # 5. Generate decision state from fused score
+        # 4. Run security engine to extract structural signals
+        security_signals = self.security_engine.analyze(request)
+
+        # 5. Fuse signals, external threat intel, and privacy intel into one authoritative score
+        fusion_result = self.score_fusion_engine.fuse(
+            security_signals=security_signals,
+            threat_intel=threat_intel,
+            privacy_intel=privacy_intel,
+        )
+
+        # 6. Generate decision state from fused score
         decision_result = self.decision_engine.generate_decision(fusion_result)
 
         from src.schemas.analysis import (
