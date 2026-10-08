@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Server, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export default function AnalyticsView() {
   const osintProviders = [
@@ -23,71 +24,83 @@ export default function AnalyticsView() {
   ];
 
   return (
-    <div className="page-transition" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div className="page-transition flex flex-col gap-8 max-w-[1200px]">
       <div>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Threat Intelligence & OSINT Analytics</h2>
-        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+        <h2 className="text-xl font-semibold tracking-tight text-heading sm:text-2xl">Threat Intelligence & OSINT Analytics</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           Detailed visibility into external vendor detection consensus, privacy trackers, and domain reputation.
         </p>
       </div>
 
-      <div className="glass-panel" style={{ padding: '1.5rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-          <Server size={18} color="#22d3ee" /> OSINT Engine Consensus & Coverage
+      <div className="rounded-md border border-border/60 bg-card p-6 scan-surface">
+        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-heading">
+          <Server className="h-4 w-4 text-analysis" /> OSINT Engine Consensus & Coverage
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {osintProviders.map((prov, i) => (
-            <div key={i} className="glass-card" style={{ padding: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{prov.name}</span>
-                <span className="badge badge-cyan">{prov.coverage}</span>
+            <div key={i} className="rounded-md border border-border/50 bg-background/30 p-5">
+              <div className="mb-4 flex items-start justify-between gap-2">
+                <span className="font-semibold text-sm text-heading">{prov.name}</span>
+                <span className="inline-flex rounded-sm bg-analysis/20 px-2 py-0.5 text-[10px] font-semibold text-analysis">
+                  {prov.coverage}
+                </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Total Queries:</span>
-                <span style={{ color: '#ffffff', fontWeight: 600 }}>{prov.queries.toLocaleString()}</span>
+                <span className="font-semibold text-heading">{prov.queries.toLocaleString()}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Threat Detections:</span>
-                <span style={{ color: 'var(--rose-400)', fontWeight: 700 }}>{prov.detections} flagged</span>
+                <span className="font-semibold text-danger">{prov.detections.toLocaleString()}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-        <div className="glass-panel" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--emerald-400)', marginBottom: '1rem' }}>
-            <CheckCircle2 size={18} /> Most Trusted Domains
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Safe Domains */}
+        <div className="rounded-md border border-border/60 bg-card p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-heading">
+            <CheckCircle2 className="h-4 w-4 text-safe" /> Top Verified Trusted Domains
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="space-y-4">
             {safeDomains.map((d, i) => (
-              <div key={i} className="glass-card" style={{ padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{d.domain}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{d.status} • {d.totalScans} scans</div>
+              <div key={i} className="flex items-center justify-between border-b border-border/40 pb-4 last:border-0 last:pb-0">
+                <div className="min-w-0 flex-1 pr-4">
+                  <p className="truncate font-semibold text-sm text-heading">{d.domain}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{d.status}</p>
                 </div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--emerald-400)' }}>
-                  {d.score}
+                <div className="text-right">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-lg font-bold text-safe">{d.score}</span>
+                    <span className="text-[10px] text-muted-foreground">/100</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{d.totalScans} scans</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="glass-panel" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--rose-400)', marginBottom: '1rem' }}>
-            <ShieldAlert size={18} /> Persistent Intercepted Threats
+        {/* Malicious Domains */}
+        <div className="rounded-md border border-border/60 bg-card p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-heading">
+            <ShieldAlert className="h-4 w-4 text-danger" /> Most Frequent Active Threats
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="space-y-4">
             {maliciousDomains.map((d, i) => (
-              <div key={i} className="glass-card" style={{ padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--rose-400)' }}>{d.domain}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{d.reason} • <span style={{ color: 'var(--rose-400)' }}>{d.blocked}</span></div>
+              <div key={i} className="flex items-center justify-between border-b border-border/40 pb-4 last:border-0 last:pb-0">
+                <div className="min-w-0 flex-1 pr-4">
+                  <p className="truncate font-semibold text-sm text-heading">{d.domain}</p>
+                  <p className="mt-1 truncate text-[11px] text-danger">{d.reason}</p>
                 </div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--rose-400)' }}>
-                  {d.score}
+                <div className="text-right">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-lg font-bold text-danger">{d.score}</span>
+                    <span className="text-[10px] text-muted-foreground">/100</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{d.blocked}</p>
                 </div>
               </div>
             ))}

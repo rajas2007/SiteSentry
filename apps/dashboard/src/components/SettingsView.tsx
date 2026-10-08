@@ -28,26 +28,28 @@ export default function SettingsView() {
   };
 
   return (
-    <div className="page-transition" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '850px' }}>
+    <div className="page-transition flex flex-col gap-8 max-w-[850px]">
       <div>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Platform Configuration & Sensitivity</h2>
-        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+        <h2 className="text-xl font-semibold tracking-tight text-heading sm:text-2xl">Platform Configuration & Sensitivity</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Manage detection engine thresholds, third-party API credentials, and audit logging export.
         </p>
       </div>
 
-      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      <form onSubmit={handleSave} className="flex flex-col gap-6">
         
-        <div className="glass-panel" style={{ padding: '1.75rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-            <Sliders size={18} color="#22d3ee" /> Detection Engine Sensitivity
+        <div className="rounded-md border border-border/60 bg-card p-6 scan-surface">
+          <h3 className="mb-6 flex items-center gap-2 text-sm font-semibold text-heading">
+            <Sliders className="h-4 w-4 text-analysis" /> Detection Engine Sensitivity
           </h3>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="flex flex-col gap-6">
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>High-Severity Block Threshold (Score &lt; {highRiskThreshold})</label>
-                <span className="badge badge-rose">{highRiskThreshold}</span>
+              <div className="mb-3 flex items-center justify-between">
+                <label className="text-sm font-semibold text-heading">High-Severity Block Threshold (Score &lt; {highRiskThreshold})</label>
+                <span className="inline-flex rounded-sm bg-danger/20 px-2 py-0.5 text-xs font-semibold text-danger">
+                  {highRiskThreshold}
+                </span>
               </div>
               <input
                 type="range"
@@ -55,48 +57,48 @@ export default function SettingsView() {
                 max="70"
                 value={highRiskThreshold}
                 onChange={(e) => setHighRiskThreshold(Number(e.target.value))}
-                style={{ width: '100%', accentColor: 'var(--cyan-400)' }}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-secondary outline-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-analysis [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(140,184,208,0.5)]"
               />
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.35rem' }}>
+              <p className="mt-2 text-[11px] text-muted-foreground">
                 Pages scoring below this threshold will immediately trigger the full-screen warning overlay and lock password inputs.
               </p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 0', borderTop: '1px solid var(--border-subtle)' }}>
+            <div className="flex items-center justify-between border-t border-border/40 pt-5">
               <div>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Strict Intervention Mode</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Block unencrypted HTTP login forms immediately regardless of domain age.</div>
+                <div className="text-sm font-semibold text-heading">Strict Intervention Mode</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Block unencrypted HTTP login forms immediately regardless of domain age.</div>
               </div>
               <input
                 type="checkbox"
                 checked={strictMode}
                 onChange={(e) => setStrictMode(e.target.checked)}
-                style={{ width: '18px', height: '18px', accentColor: 'var(--cyan-400)', cursor: 'pointer' }}
+                className="h-4 w-4 cursor-pointer rounded border-border/80 bg-background/50 accent-analysis"
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 0', borderTop: '1px solid var(--border-subtle)' }}>
+            <div className="flex items-center justify-between border-t border-border/40 pt-5">
               <div>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Aggressive Tracker Defense</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Penalize websites containing more than 10 third-party tracking cookies.</div>
+                <div className="text-sm font-semibold text-heading">Aggressive Tracker Defense</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Penalize websites containing more than 10 third-party tracking cookies.</div>
               </div>
               <input
                 type="checkbox"
                 checked={blockTrackers}
                 onChange={(e) => setBlockTrackers(e.target.checked)}
-                style={{ width: '18px', height: '18px', accentColor: 'var(--cyan-400)', cursor: 'pointer' }}
+                className="h-4 w-4 cursor-pointer rounded border-border/80 bg-background/50 accent-analysis"
               />
             </div>
           </div>
         </div>
 
-        <div className="glass-panel" style={{ padding: '1.75rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-            <Key size={18} color="#a78bfa" /> External Intelligence Credentials
+        <div className="rounded-md border border-border/60 bg-card p-6">
+          <h3 className="mb-5 flex items-center gap-2 text-sm font-semibold text-heading">
+            <Key className="h-4 w-4 text-[#8b5cf6]" /> External Intelligence Credentials
           </h3>
 
           <div>
-            <label style={{ fontSize: '0.82rem', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>
+            <label className="mb-2 block text-sm font-semibold text-heading">
               OpenAI API Key (For Privacy Policy AI Parsing)
             </label>
             <input
@@ -104,33 +106,30 @@ export default function SettingsView() {
               value={openaiKey}
               onChange={(e) => setOpenaiKey(e.target.value)}
               placeholder="sk-proj-..."
-              className="input-field"
-              style={{ fontSize: '0.85rem' }}
+              className="w-full rounded-md border border-border/80 bg-background/50 px-3 py-2 text-sm text-heading placeholder:text-muted-foreground focus:border-analysis focus:outline-none focus:ring-1 focus:ring-analysis"
             />
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.35rem' }}>
+            <p className="mt-2 text-[11px] text-muted-foreground">
               Used by PrivacyIntelligenceEngine to extract data-selling and third-party sharing clauses.
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="flex flex-wrap items-center justify-between gap-4 mt-2">
           <button
             type="button"
             onClick={handleExportJSON}
-            className="btn btn-secondary"
-            style={{ fontSize: '0.82rem' }}
+            className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-secondary/30 px-4 py-2 text-sm font-medium text-heading transition-colors hover:bg-secondary/60"
           >
-            <Download size={14} /> Export Scan Ledger (JSON)
+            <Download className="h-4 w-4" /> Export Scan Ledger (JSON)
           </button>
 
           <button
             type="submit"
-            className="btn btn-primary"
-            style={{ fontSize: '0.85rem', padding: '0.65rem 1.75rem' }}
+            className="inline-flex items-center gap-2 rounded-md bg-analysis px-6 py-2 text-sm font-semibold text-[#0f172a] shadow-sm transition-all hover:bg-analysis/90 hover:shadow-[0_0_15px_rgba(140,184,208,0.3)]"
           >
             {saved ? (
               <>
-                <Check size={16} /> Preferences Saved
+                <Check className="h-4 w-4" /> Preferences Saved
               </>
             ) : (
               'Save Preferences'

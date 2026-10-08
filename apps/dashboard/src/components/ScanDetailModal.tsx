@@ -1,26 +1,33 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { 
-  X, 
-  ExternalLink, 
-  Clock, 
-  ShieldCheck, 
-  ShieldAlert, 
-  Server, 
-  Cpu, 
-  Lock 
-} from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { X, Clock, Radar, Minus } from 'lucide-react';
 import { DetailedScanResult } from '../lib/types';
-import ScoreGauge from './ScoreGauge';
+import { ScoreRing, RiskMascot, RiskBadge } from './sentry/primitives';
+import { cn } from '../lib/utils';
+import { formatCategory, severityStyle, type Severity } from '../lib/sentry';
 
 interface ScanDetailModalProps {
   scan: DetailedScanResult | null;
   onClose: () => void;
 }
 
+const riskAtmosphereClass: Record<string, string> = {
+  LOW: "risk-tone-low",
+  MEDIUM: "risk-tone-medium",
+  HIGH: "risk-tone-high",
+};
+
 export default function ScanDetailModal({ scan, onClose }: ScanDetailModalProps) {
   const [isClosing, setIsClosing] = useState(false);
+
+  const handleTriggerClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 180);
+  }, [onClose]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,229 +41,157 @@ export default function ScanDetailModal({ scan, onClose }: ScanDetailModalProps)
       document.body.style.overflow = 'auto';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [scan]);
+  }, [scan, handleTriggerClose]);
 
   if (!scan) return null;
 
-  const handleTriggerClose = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setIsClosing(false);
-      onClose();
-    }, 180);
-  };
-
-  const isSafe = scan.score >= 80;
-  const isMedium = scan.score >= 50 && scan.score < 80;
-
-  const themeBg = isSafe ? 'rgba(16, 185, 129, 0.08)' : isMedium ? 'rgba(245, 158, 11, 0.08)' : 'rgba(244, 63, 94, 0.08)';
-  const themeBorder = isSafe ? 'rgba(16, 185, 129, 0.3)' : isMedium ? 'rgba(245, 158, 11, 0.3)' : 'rgba(244, 63, 94, 0.3)';
+  const severity = scan.severity.toUpperCase() as Severity;
+  const tone = severityStyle[severity];
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        justifyContent: 'flex-end',
-      }}
-    >
+    <div className="fixed inset-0 z-[100] flex justify-end">
       {/* Backdrop */}
       <div
         onClick={handleTriggerClose}
-        className={isClosing ? 'overlay-exit' : 'overlay-enter'}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(3, 5, 8, 0.7)',
-          backdropFilter: 'blur(4px)',
-        }}
+        className={cn("absolute inset-0 bg-[#030508]/70 backdrop-blur-[4px]", isClosing ? 'overlay-exit' : 'overlay-enter')}
       />
 
       {/* Slide-over Drawer */}
       <div
-        className={isClosing ? 'drawer-exit' : 'drawer-enter'}
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: '520px',
-          height: '100%',
-          background: 'var(--bg-surface)',
-          borderLeft: '1px solid var(--border-subtle)',
-          boxShadow: '-10px 0 40px rgba(0, 0, 0, 0.6)',
-          display: 'flex',
-          flexDirection: 'column',
-          zIndex: 10,
-          overflowY: 'auto',
-        }}
+        className={cn(
+          "relative z-10 flex h-full w-full max-w-[520px] flex-col overflow-y-auto bg-card border-l border-border/60 shadow-[-10px_0_40px_rgba(0,0,0,0.6)]",
+          isClosing ? 'drawer-exit' : 'drawer-enter'
+        )}
       >
-        {/* Drawer Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          padding: '1.5rem 1.75rem',
-          borderBottom: '1px solid var(--border-subtle)',
-          position: 'sticky',
-          top: 0,
-          background: 'rgba(13, 17, 28, 0.98)',
-          zIndex: 2,
-        }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <span className={`badge badge-${scan.decision?.ui?.color || (isSafe ? 'emerald' : isMedium ? 'amber' : 'rose')}`}>
-                {scan.decision?.action?.toUpperCase() || (isSafe ? 'ALLOW' : 'BLOCK')}
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                <Clock size={12} /> {new Date(scan.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        {/* Header */}
+        <div className="sticky top-0 z-20 flex items-start justify-between gap-4 border-b border-border/60 bg-background/90 p-5 backdrop-blur-md">
+          <div className="min-w-0">
+            <div className="mb-2 flex items-center gap-2">
+              <RiskBadge severity={severity} />
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" />
+                {new Date(scan.scanned_at).toLocaleString()}
               </span>
             </div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, wordBreak: 'break-all', fontFamily: 'var(--font-heading)' }}>
+            <h2 className="break-all font-heading text-lg font-bold text-heading">
               {scan.domain}
             </h2>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>
+            <p className="break-all font-mono text-xs text-muted-foreground">
               {scan.url}
             </p>
           </div>
 
           <button
             onClick={handleTriggerClose}
-            className="btn btn-secondary"
-            style={{
-              width: '32px',
-              height: '32px',
-              padding: 0,
-              borderRadius: '8px',
-              color: 'var(--text-muted)'
-            }}
-            title="Close Drawer (Esc)"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-heading"
           >
-            <X size={16} />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Drawer Body */}
-        <div style={{ padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.35rem', flex: '1' }}>
-          
-          {/* Score & Verdict Banner */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.25rem',
-            padding: '1.15rem 1.25rem',
-            borderRadius: '12px',
-            background: themeBg,
-            border: `1px solid ${themeBorder}`,
-          }}>
-            <ScoreGauge score={scan.score} size={64} strokeWidth={5} />
-
-            <div style={{ flex: '1' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff' }}>
-                  {isSafe ? 'Low Security Risk' : isMedium ? 'Suspicious / Elevated Risk' : 'High Threat Intercepted'}
-                </span>
-                <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.08)', color: '#ffffff', fontSize: '0.66rem' }}>
-                  Confidence: {Math.round((scan.confidence || 0.95) * 100)}%
-                </span>
+        {/* Content */}
+        <div className="flex-1">
+          {/* Main Score Area */}
+          <section
+            className={cn(
+              "scan-surface risk-atmosphere relative border-b border-border/60 px-6 py-8",
+              riskAtmosphereClass[severity]
+            )}
+          >
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+              <div className="flex shrink-0 justify-center">
+                <ScoreRing
+                  key={scan.analysis_id}
+                  score={scan.score}
+                  severity={severity}
+                  size={164}
+                />
               </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-main)', lineHeight: 1.4 }}>
-                {scan.recommendations && scan.recommendations[0] ? scan.recommendations[0] : 'Analysis completed successfully.'}
-              </p>
-            </div>
-          </div>
 
-          {/* OSINT Feeds Card */}
-          <div className="glass-card" style={{ padding: '1.1rem' }}>
-            <h4 style={{ fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--cyan-400)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              <Server size={15} /> Global Threat Intelligence (OSINT)
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              {scan.threat_intelligence?.sources && scan.threat_intelligence.sources.length > 0 ? (
-                scan.threat_intelligence.sources.map((src, i) => (
-                  <div key={i} style={{ padding: '0.6rem 0.75rem', background: 'rgba(255, 255, 255, 0.025)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 600 }}>
-                      <span>{src.provider}</span>
-                      <span className={`badge badge-${src.status === 'detected' ? 'rose' : src.status === 'clean' ? 'emerald' : 'amber'}`}>
-                        {src.status.toUpperCase()}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{src.summary}</p>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: '0.6rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Threat feeds scanned clean. No malicious domain signatures reported.
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Confidence: {Math.round(scan.confidence * 100)}%
+                </p>
+                <div className={cn("mt-4 flex items-center gap-3 border-l-2 pl-3", tone.border)}>
+                  <RiskMascot
+                    severity={severity}
+                    scale="supporting"
+                    className="h-10 w-10 sm:h-12 sm:w-12 shrink-0"
+                  />
+                  <p className={cn("min-w-0 text-sm font-semibold leading-relaxed", tone.text)}>
+                    {scan.decision.action === "allow" ? "Browsing permitted." : scan.decision.action === "warn" ? "Caution advised." : "Intervention required."}
+                  </p>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
+          </section>
 
-          {/* Structural Signals */}
-          <div className="glass-card" style={{ padding: '1.1rem' }}>
-            <h4 style={{ fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--purple-400)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              <Cpu size={15} /> Structural & Behavioral Signals
-            </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              {scan.factors && scan.factors.length > 0 ? (
-                scan.factors.map((factor, i) => (
-                  <li key={i} style={{ fontSize: '0.75rem', color: 'var(--text-main)', display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
-                    <span style={{ color: isSafe ? 'var(--emerald-400)' : 'var(--rose-400)', marginTop: '1px' }}>•</span>
-                    <span>{factor}</span>
-                  </li>
-                ))
-              ) : (
-                <li style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Standard web page characteristics verified.
-                </li>
-              )}
-            </ul>
-          </div>
-
-          {/* Privacy Assessment */}
-          <div className="glass-card" style={{ padding: '1.1rem' }}>
-            <h4 style={{ fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--amber-400)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              <Lock size={15} /> Privacy & Consent Evaluation
-            </h4>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-              {scan.threat_category === 'privacy_abuse'
-                ? 'AI analysis identified potential data selling or third-party marketing sharing clauses in the site policy.'
-                : 'No predatory data selling clauses or excessive tracker beacons detected.'}
+          {/* Details Section */}
+          <section className="px-6 py-6">
+            <h3 className="mb-4 text-sm font-semibold text-heading">Why this result?</h3>
+            <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
+              {scan.factors && scan.factors.length > 0
+                ? `${scan.factors.length} security factor${scan.factors.length === 1 ? "" : "s"} evaluated.`
+                : "No security factors were reported for this sample."}
             </p>
-          </div>
 
+            {scan.factors && scan.factors.length > 0 && (
+              <ul className="mb-6 space-y-2">
+                {scan.factors.map((factor, i) => (
+                  <li key={i} className="flex gap-2.5 border-b border-border/40 pb-2 text-xs last:border-0">
+                    <Minus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="text-heading">{factor}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {scan.threat_intelligence && scan.threat_intelligence.sources && scan.threat_intelligence.sources.length > 0 && (
+              <div className="mb-6 rounded-md border border-border/50 bg-background/30 p-4">
+                <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-heading">
+                  <Radar className="h-3.5 w-3.5 text-analysis" aria-hidden="true" />
+                  Threat intelligence
+                </h4>
+                <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 text-xs">
+                  {scan.threat_intelligence.sources.map((source, i) => (
+                    <div key={i} className="contents">
+                      <dt className="text-muted-foreground">{source.provider}</dt>
+                      <dd className="max-w-[180px] text-right font-mono text-[10px] text-heading">
+                        <span className={cn("mr-2", source.status === 'detected' ? 'text-danger' : source.status === 'clean' ? 'text-safe' : 'text-muted-foreground')}>
+                          {source.status.toUpperCase()}
+                        </span>
+                        <span className="block mt-0.5 text-muted-foreground truncate">{source.summary}</span>
+                      </dd>
+                    </div>
+                  ))}
+                  <dt className="text-muted-foreground pt-2 border-t border-border/40">Threat category</dt>
+                  <dd className="max-w-[180px] text-right font-mono text-[10px] text-heading pt-2 border-t border-border/40">
+                    {formatCategory(scan.threat_category)}
+                  </dd>
+                </dl>
+              </div>
+            )}
+
+            {scan.recommendations && scan.recommendations.length > 0 && (
+              <div className="mt-2">
+                <h3 className="mb-3 text-sm font-semibold text-heading">Recommendations</h3>
+                <ul className="space-y-2.5">
+                  {scan.recommendations.map((rec, i) => (
+                    <li key={i} className="flex gap-2.5 text-xs leading-relaxed text-heading">
+                      <span className="mt-1.5 h-px w-3 shrink-0 bg-analysis/60" aria-hidden="true" />
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
         </div>
-
-        {/* Drawer Footer */}
-        <div style={{
-          padding: '1.25rem 1.75rem',
-          borderTop: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'rgba(13, 17, 28, 0.98)',
-          position: 'sticky',
-          bottom: 0,
-        }}>
-          <a
-            href={scan.url}
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-secondary"
-            style={{ fontSize: '0.78rem' }}
-          >
-            <ExternalLink size={13} /> Visit Site
-          </a>
-          <button
-            onClick={handleTriggerClose}
-            className="btn btn-primary"
-            style={{ fontSize: '0.78rem', padding: '0.5rem 1.25rem' }}
-          >
-            Done
-          </button>
+        
+        {/* Footer */}
+        <div className="border-t border-border/60 bg-background/50 p-4 text-center font-mono text-[9px] text-muted-foreground">
+          Analysis ID: {scan.analysis_id}
         </div>
-
       </div>
     </div>
   );

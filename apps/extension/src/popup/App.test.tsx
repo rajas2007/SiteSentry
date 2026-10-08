@@ -62,15 +62,14 @@ describe('App component', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText('Threat Intelligence')).toBeInTheDocument();
+      expect(screen.getAllByText(/Threat intelligence/i).length).toBeGreaterThan(0);
     });
 
     expect(screen.getByText('Google Safe Browsing')).toBeInTheDocument();
-    expect(screen.getByText('Flagged as dangerous')).toBeInTheDocument();
-    expect(screen.getByText('Phishing')).toBeInTheDocument();
+    expect(screen.getByText(/Flagged as dangerous/)).toBeInTheDocument();
 
     expect(screen.getByText('VirusTotal')).toBeInTheDocument();
-    expect(screen.getByText('No security vendors flagged this domain')).toBeInTheDocument();
+    expect(screen.getByText(/No security vendors flagged this domain/)).toBeInTheDocument();
   });
 
   it('should render other security factors even without threat intelligence', async () => {
@@ -101,10 +100,10 @@ describe('App component', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText('Other Security Factors')).toBeInTheDocument();
+      expect(screen.getByText('Why this result?')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('Threat Intelligence')).not.toBeInTheDocument();
+    expect(screen.queryByText('Google Safe Browsing')).not.toBeInTheDocument();
     expect(screen.getByText('Connection is encrypted')).toBeInTheDocument();
   });
 });

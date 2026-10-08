@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Header from '../components/Header';
+import { ConsoleShell } from '../components/sentry/ConsoleShell';
 import MetricCards from '../components/MetricCards';
 import LiveScanner from '../components/LiveScanner';
 import SecurityTrendChart from '../components/SecurityTrendChart';
@@ -128,19 +128,13 @@ export default function DashboardPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      
-      {/* Global Navigation Header */}
-      <Header
+    <>
+      <ConsoleShell
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onQuickScan={handleQuickScan}
         isBackendConnected={isBackendConnected}
-      />
-
-      {/* Main Content Area */}
-      <main style={{ flex: '1', maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '1.75rem 1.5rem' }}>
-        
+      >
         <div key={activeTab} className="page-transition">
           
           {/* OVERVIEW TAB */}
@@ -189,53 +183,13 @@ export default function DashboardPage() {
           )}
 
         </div>
-
-      </main>
+      </ConsoleShell>
 
       {/* Scan Detail Slide-Over Drawer */}
       <ScanDetailModal
         scan={selectedScan}
         onClose={() => setSelectedScan(null)}
       />
-
-      {/* Footer */}
-      <footer style={{
-        borderTop: '1px solid var(--border-subtle)',
-        padding: '1.25rem 2rem',
-        background: 'rgba(7, 9, 14, 0.9)',
-        marginTop: 'auto',
-      }}>
-        <div style={{
-          maxWidth: '1440px',
-          margin: '0 auto',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          fontSize: '0.76rem',
-          color: 'var(--text-muted)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ShieldCheck size={15} color="#38bdf8" />
-            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>SiteSentry Platform</span>
-            <span>— Explainable Cybersecurity Intelligence</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Server size={12} color="var(--cyan-400)" /> Gateway: {isBackendConnected ? 'Online (Port 8000)' : 'Standalone Fallback'}
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Database size={12} color="var(--purple-400)" /> Redis Cache: Active (24h OSINT TTL)
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Terminal size={12} color="var(--emerald-400)" /> Score Fusion Engine v0.1.0
-            </span>
-          </div>
-        </div>
-      </footer>
-
-    </div>
+    </>
   );
 }

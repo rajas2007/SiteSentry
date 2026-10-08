@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { History, Search, Eye } from 'lucide-react';
 import { ScanHistoryItem } from '../lib/types';
+import { RiskBadge } from './sentry/primitives';
 
 interface RecentScansTableProps {
   scans: ScanHistoryItem[];
@@ -30,53 +31,44 @@ export default function RecentScansTable({
   });
 
   return (
-    <div className="glass-panel" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+    <div className="scan-surface mb-8 rounded-md border border-border/60">
       
       {/* Title & Filter Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.15rem', flexWrap: 'wrap', gap: '0.85rem' }}>
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 p-5 bg-background/50">
         <div>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            <History size={17} color="#38bdf8" /> {title}
+          <h3 className="flex items-center gap-2 text-base font-semibold text-heading">
+            <History className="h-4 w-4 text-analysis" /> {title}
           </h3>
-          <p style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+          <p className="mt-1 text-xs text-muted-foreground">
             Chronological audit trail of analyzed websites and intervention events
           </p>
         </div>
 
         {/* Search & Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <div className="flex flex-wrap items-center gap-3">
           {/* Search box */}
-          <div style={{ position: 'relative' }}>
-            <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: '9px', top: '9px' }} />
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="text"
-              id="scans-table-filter-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter domain..."
-              className="input-field"
-              style={{ width: '165px', height: '32px', fontSize: '0.75rem', paddingLeft: '1.85rem' }}
+              className="h-9 w-44 rounded-md border border-border/80 bg-background/50 pl-8 pr-3 text-xs text-heading placeholder:text-muted-foreground focus:border-analysis focus:outline-none focus:ring-1 focus:ring-analysis"
             />
           </div>
 
           {/* Severity Pills */}
-          <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '7px', padding: '2px', border: '1px solid var(--border-subtle)' }}>
+          <div className="flex rounded-md border border-border/80 bg-background/30 p-0.5">
             {(['all', 'high', 'medium', 'low'] as const).map((sev) => (
               <button
                 key={sev}
                 onClick={() => setFilterSeverity(sev)}
-                style={{
-                  padding: '0.2rem 0.6rem',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  borderRadius: '5px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: filterSeverity === sev ? 'rgba(2, 132, 199, 0.22)' : 'transparent',
-                  color: filterSeverity === sev ? '#38bdf8' : 'var(--text-muted)',
-                  textTransform: 'capitalize',
-                  transition: 'all 160ms var(--ease-out-smooth)'
-                }}
+                className={`rounded px-3 py-1.5 text-[10px] font-semibold capitalize transition-colors ${
+                  filterSeverity === sev
+                    ? 'bg-analysis/20 text-analysis'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-heading'
+                }`}
               >
                 {sev}
               </button>
@@ -86,80 +78,66 @@ export default function RecentScansTable({
       </div>
 
       {/* Table Container */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-dim)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              <th style={{ padding: '0.65rem 0.85rem' }}>Domain & Target URL</th>
-              <th style={{ padding: '0.65rem 0.85rem' }}>Trust Score</th>
-              <th style={{ padding: '0.65rem 0.85rem' }}>Threat Category</th>
-              <th style={{ padding: '0.65rem 0.85rem' }}>Verdict</th>
-              <th style={{ padding: '0.65rem 0.85rem' }}>Scanned At</th>
-              <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right' }}>Actions</th>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-background/30 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <tr className="border-b border-border/60">
+              <th className="px-5 py-3 font-medium">Domain & Target URL</th>
+              <th className="px-5 py-3 font-medium">Trust Score</th>
+              <th className="px-5 py-3 font-medium">Threat Category</th>
+              <th className="px-5 py-3 font-medium">Verdict</th>
+              <th className="px-5 py-3 font-medium">Scanned At</th>
+              <th className="px-5 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-border/40">
             {filteredScans.length > 0 ? (
               filteredScans.map((scan) => {
-                const isSafe = scan.score >= 80;
-                const isMedium = scan.score >= 50 && scan.score < 80;
-                const badgeTheme = isSafe ? 'badge-emerald' : isMedium ? 'badge-amber' : 'badge-rose';
                 const isNew = scan.id === newlyAddedId;
 
                 return (
                   <tr 
                     key={scan.id} 
-                    className={`table-row-hover ${isNew ? 'row-new' : ''}`}
-                    style={{ 
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                    }}
+                    className={`transition-colors hover:bg-secondary/20 ${isNew ? 'row-new' : ''}`}
                   >
-                    <td style={{ padding: '0.75rem 0.85rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-main)', fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
+                    <td className="px-5 py-3">
+                      <div className="text-sm font-medium text-heading">
                         {scan.domain}
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', maxWidth: '270px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>
+                      <div className="max-w-[270px] truncate font-mono text-[10px] text-muted-foreground mt-0.5">
                         {scan.url}
                       </div>
                     </td>
 
-                    <td style={{ padding: '0.75rem 0.85rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span style={{ 
-                          fontWeight: 800, 
-                          fontFamily: 'var(--font-heading)',
-                          fontSize: '0.95rem',
-                          color: isSafe ? 'var(--emerald-400)' : isMedium ? 'var(--amber-400)' : 'var(--rose-400)'
-                        }}>
+                    <td className="px-5 py-3">
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-base font-bold ${scan.severity === 'high' ? 'text-danger' : scan.severity === 'medium' ? 'text-caution' : 'text-safe'}`}>
                           {scan.score}
                         </span>
-                        <span style={{ fontSize: '0.62rem', color: 'var(--text-dim)' }}>/100</span>
+                        <span className="text-[10px] text-muted-foreground">/100</span>
                       </div>
                     </td>
 
-                    <td style={{ padding: '0.75rem 0.85rem' }}>
-                      <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)' }}>
+                    <td className="px-5 py-3">
+                      <span className="inline-flex rounded-sm bg-secondary/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         {scan.threat_category.replace('_', ' ')}
                       </span>
                     </td>
 
-                    <td style={{ padding: '0.75rem 0.85rem' }}>
-                      <span className={`badge ${badgeTheme}`}>
-                        {scan.verdict.toUpperCase()}
-                      </span>
+                    <td className="px-5 py-3">
+                      <RiskBadge severity={scan.severity.toUpperCase() as any} />
                     </td>
 
-                    <td style={{ padding: '0.75rem 0.85rem', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                    <td className="px-5 py-3 font-mono text-[10px] text-muted-foreground">
                       {new Date(scan.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </td>
 
-                    <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                    <td className="px-5 py-3 text-right">
                       <button
                         onClick={() => onSelectScan(scan)}
-                        className="btn btn-secondary action-btn"
-                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+                        className="inline-flex items-center gap-1.5 rounded bg-secondary px-2.5 py-1.5 text-[11px] font-medium text-heading opacity-70 transition-all hover:bg-secondary/80 hover:opacity-100 border border-border/50"
                       >
-                        <Eye size={12} /> Inspect
+                        <Eye className="h-3.5 w-3.5" /> Inspect
                       </button>
                     </td>
                   </tr>
@@ -167,7 +145,7 @@ export default function RecentScansTable({
               })
             ) : (
               <tr>
-                <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                <td colSpan={6} className="p-8 text-center text-xs text-muted-foreground">
                   No scans match the active search or severity filter.
                 </td>
               </tr>

@@ -1,3 +1,6 @@
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@source "../src";
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
@@ -484,3 +487,252 @@ h1, h2, h3, h4, h5, h6 {
     scroll-behavior: auto !important;
   }
 }
+
+
+
+
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-heading: var(--heading);
+  --color-safe: var(--safe);
+  --color-safe-soft: var(--safe-soft);
+  --color-caution: var(--caution);
+  --color-caution-soft: var(--caution-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-analysis: var(--analysis);
+  --color-analysis-soft: var(--analysis-soft);
+  --color-slate-ink: var(--slate-ink);
+  --color-slate-ink-foreground: var(--slate-ink-foreground);
+  --color-grid: var(--grid);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+:root {
+  color-scheme: dark;
+  --radius: 0.35rem;
+  --background: #0f172a;
+  --foreground: #cbd5e1;
+  --heading: #f1f5f9;
+  --card: #111c2e;
+  --card-foreground: #cbd5e1;
+  --popover: #111c2e;
+  --popover-foreground: #e2e8f0;
+  --primary: #0f172a;
+  --primary-foreground: #f1f5f9;
+  --secondary: #172438;
+  --secondary-foreground: #e2e8f0;
+  --muted: #1b2a40;
+  --muted-foreground: #94a3b8;
+  --accent: #223149;
+  --accent-foreground: #f1f5f9;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #2b3a50;
+  --input: #334155;
+  --ring: #94a3b8;
+  --safe: #10b981;
+  --safe-soft: #102e2c;
+  --caution: #f59e0b;
+  --caution-soft: #332b19;
+  --danger: #ef4444;
+  --danger-soft: #351d28;
+  --analysis: #8cb8d0;
+  --analysis-soft: #172e40;
+  --slate-ink: #334155;
+  --slate-ink-foreground: #f1f5f9;
+  --grid: rgb(148 163 184 / 0.045);
+  --chart-1: #8cb8d0;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #64748b;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    min-width: 320px;
+    background: var(--background);
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: var(--slate-ink);
+    color: var(--slate-ink-foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Atmospheric field; technical linework is reserved for individual analysis surfaces. */
+@utility blueprint {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(112deg, rgb(37 67 91 / 0.18) 0%, transparent 38%),
+    linear-gradient(180deg, rgb(5 12 24 / 0.3) 0%, transparent 240px);
+  background-attachment: fixed;
+}
+
+@utility scan-surface {
+  background-color: var(--card);
+  background-image:
+    linear-gradient(180deg, rgb(226 232 240 / 0.035), transparent 120px),
+    linear-gradient(90deg, transparent 31px, rgb(140 184 208 / 0.017) 32px),
+    linear-gradient(0deg, transparent 31px, rgb(140 184 208 / 0.017) 32px);
+  background-size:
+    100% 100%,
+    32px 32px,
+    32px 32px;
+}
+
+@utility blueprint-field {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(180deg, rgb(5 12 24 / 0.14), transparent 180px),
+    linear-gradient(90deg, transparent 31px, rgb(140 184 208 / 0.018) 32px),
+    linear-gradient(0deg, transparent 31px, rgb(140 184 208 / 0.018) 32px);
+  background-size:
+    100% 100%,
+    32px 32px,
+    32px 32px;
+}
+
+.risk-tone-low {
+  --risk-atmosphere: var(--safe);
+}
+
+.risk-tone-medium {
+  --risk-atmosphere: var(--caution);
+}
+
+.risk-tone-high {
+  --risk-atmosphere: var(--danger);
+}
+
+.scan-surface.risk-atmosphere {
+  background-image:
+    radial-gradient(
+      ellipse at 0% 0%,
+      color-mix(in srgb, var(--risk-atmosphere) 9%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(226 232 240 / 0.035), transparent 120px),
+    linear-gradient(90deg, transparent 31px, rgb(140 184 208 / 0.017) 32px),
+    linear-gradient(0deg, transparent 31px, rgb(140 184 208 / 0.017) 32px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    32px 32px,
+    32px 32px;
+}
+
+.assessment-composition.risk-atmosphere {
+  background-image: radial-gradient(
+    ellipse at 34% 28%,
+    color-mix(in srgb, var(--risk-atmosphere) 8%, transparent),
+    transparent 68%
+  );
+}
+
+@utility label-tech {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.risk-marker {
+  position: relative;
+  clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 5px 100%, 0 calc(100% - 5px));
+}
+
+.scan-track {
+  position: relative;
+  overflow: hidden;
+  background: var(--secondary);
+}
+
+.scan-track::after {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 36%;
+  background: linear-gradient(90deg, transparent, rgb(140 184 208 / 0.65), transparent);
+  content: "";
+  animation: scan-sweep 1.8s ease-in-out infinite;
+}
+
+.score-path {
+  transition: filter 280ms ease;
+}
+
+@keyframes scan-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(360%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Activity } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 interface DataPoint {
   day: string;
@@ -67,191 +68,143 @@ export default function SecurityTrendChart() {
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
 
   return (
-    <div className="glass-card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="flex h-full flex-col rounded-md border border-border/60 bg-card p-5 scan-surface">
       
       {/* Header with Title & Range Switcher */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+      <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            <Activity size={16} color="#38bdf8" /> Real-Time Traffic & Interception Volume
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-heading">
+            <Activity className="h-4 w-4 text-analysis" /> Real-Time Traffic & Interception Volume
           </h3>
-          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Daily inspect events vs threats neutralized</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Daily inspect events vs threats neutralized</p>
         </div>
 
-        {/* Range Switcher */}
-        <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '7px', padding: '2px', border: '1px solid var(--border-subtle)' }}>
+        <div className="flex rounded-md border border-border/80 bg-background/30 p-0.5">
           <button
             onClick={() => setTimeRange('7d')}
-            style={{
-              padding: '0.2rem 0.6rem',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              borderRadius: '5px',
-              border: 'none',
-              cursor: 'pointer',
-              background: timeRange === '7d' ? 'rgba(2, 132, 199, 0.25)' : 'transparent',
-              color: timeRange === '7d' ? '#38bdf8' : 'var(--text-muted)',
-              transition: 'all 160ms var(--ease-out-smooth)'
-            }}
+            className={cn("rounded px-2.5 py-1 text-[10px] font-semibold transition-colors", timeRange === '7d' ? "bg-analysis/20 text-analysis" : "text-muted-foreground hover:bg-secondary/50 hover:text-heading")}
           >
-            7 Days
+            7D
           </button>
           <button
             onClick={() => setTimeRange('30d')}
-            style={{
-              padding: '0.2rem 0.6rem',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              borderRadius: '5px',
-              border: 'none',
-              cursor: 'pointer',
-              background: timeRange === '30d' ? 'rgba(2, 132, 199, 0.25)' : 'transparent',
-              color: timeRange === '30d' ? '#38bdf8' : 'var(--text-muted)',
-              transition: 'all 160ms var(--ease-out-smooth)'
-            }}
+            className={cn("rounded px-2.5 py-1 text-[10px] font-semibold transition-colors", timeRange === '30d' ? "bg-analysis/20 text-analysis" : "text-muted-foreground hover:bg-secondary/50 hover:text-heading")}
           >
-            30 Days
+            30D
           </button>
         </div>
       </div>
 
-      {/* SVG Canvas */}
-      <div style={{ position: 'relative', width: '100%', flex: 1, minHeight: '160px' }}>
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          style={{ width: '100%', height: '100%', overflow: 'visible' }}
-        >
+      <div className="relative mt-2 flex-1 min-h-[180px]">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full overflow-visible" preserveAspectRatio="none">
+          {/* Grid lines */}
+          {[0, 1, 2, 3].map(i => (
+            <line
+              key={i}
+              x1={padding}
+              y1={padding + (usableHeight / 3) * i}
+              x2={width - padding}
+              y2={padding + (usableHeight / 3) * i}
+              stroke="var(--color-border)"
+              strokeDasharray="4 4"
+              strokeOpacity="0.4"
+              strokeWidth={1}
+            />
+          ))}
+
+          {/* X Axis Labels */}
+          {points.map((p, i) => (
+            <text
+              key={i}
+              x={p.x}
+              y={height - 5}
+              fill="var(--color-muted-foreground)"
+              fontSize="10"
+              fontFamily="var(--font-mono)"
+              textAnchor="middle"
+            >
+              {p.data.day}
+            </text>
+          ))}
+
+          {/* Area & Line */}
+          {isDrawn && (
+            <>
+              <path
+                d={areaPath}
+                fill="url(#trend-gradient)"
+                opacity={0.4}
+                className="transition-all duration-1000 ease-out"
+              />
+              <path
+                d={linePath}
+                fill="none"
+                stroke="var(--color-analysis)"
+                strokeWidth={3}
+                strokeLinecap="round"
+                className="transition-all duration-1000 ease-out"
+                strokeDasharray="1000"
+                strokeDashoffset={isDrawn ? 0 : 1000}
+              />
+            </>
+          )}
+
+          {/* Interaction Points */}
+          {points.map((p, i) => (
+            <g
+              key={i}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+              className="cursor-crosshair outline-none"
+            >
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={hoveredIdx === i ? 6 : 4}
+                fill="var(--color-card)"
+                stroke="var(--color-analysis)"
+                strokeWidth={2}
+                className="transition-all duration-200"
+                opacity={isDrawn ? 1 : 0}
+              />
+              <rect
+                x={p.x - usableWidth / (points.length * 2)}
+                y={0}
+                width={usableWidth / points.length}
+                height={height}
+                fill="transparent"
+              />
+            </g>
+          ))}
+
           <defs>
-            <linearGradient id="cyanTrendGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0284c7" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#0284c7" stopOpacity="0.0" />
+            <linearGradient id="trend-gradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-analysis)" stopOpacity={0.6} />
+              <stop offset="100%" stopColor="var(--color-analysis)" stopOpacity={0} />
             </linearGradient>
           </defs>
-
-          {/* Grid lines */}
-          {[0, 0.5, 1].map((ratio, idx) => {
-            const y = padding + usableHeight * ratio;
-            return (
-              <line
-                key={idx}
-                x1={padding}
-                y1={y}
-                x2={width - padding}
-                y2={y}
-                stroke="rgba(255, 255, 255, 0.05)"
-                strokeDasharray="4 4"
-                strokeWidth="1"
-              />
-            );
-          })}
-
-          {/* Area Fill */}
-          <path
-            d={areaPath}
-            fill="url(#cyanTrendGradient)"
-            style={{
-              opacity: isDrawn ? 1 : 0,
-              transition: 'opacity 400ms var(--ease-out-smooth)'
-            }}
-          />
-
-          {/* Smooth Line */}
-          <path
-            d={linePath}
-            fill="none"
-            stroke="#38bdf8"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              strokeDasharray: isDrawn ? 'none' : '1000',
-              strokeDashoffset: isDrawn ? '0' : '1000',
-              transition: 'stroke-dashoffset 650ms cubic-bezier(0.16, 1, 0.3, 1)'
-            }}
-          />
-
-          {/* Points */}
-          {points.map((p, i) => {
-            const isHovered = hoveredIdx === i;
-            return (
-              <g 
-                key={i} 
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx(null)}
-                style={{ cursor: 'pointer' }}
-              >
-                {/* Vertical hover line */}
-                {isHovered && (
-                  <line
-                    x1={p.x}
-                    y1={padding}
-                    x2={p.x}
-                    y2={height - padding}
-                    stroke="rgba(56, 189, 248, 0.4)"
-                    strokeWidth="1"
-                    strokeDasharray="2 2"
-                  />
-                )}
-
-                {/* Point dot */}
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={isHovered ? 6 : 3.5}
-                  fill={isHovered ? '#ffffff' : '#0284c7'}
-                  stroke="#090c13"
-                  strokeWidth="2"
-                  style={{
-                    transition: 'r 160ms var(--ease-out-smooth), fill 160ms var(--ease-out-smooth)',
-                    opacity: isDrawn ? 1 : 0,
-                  }}
-                />
-
-                {/* Day label */}
-                <text 
-                  x={p.x} 
-                  y={height - 6} 
-                  fill={isHovered ? '#ffffff' : 'var(--text-muted)'} 
-                  fontSize="9.5" 
-                  textAnchor="middle" 
-                  fontWeight={isHovered ? 700 : 500}
-                  style={{ transition: 'fill 160ms ease' }}
-                >
-                  {p.data.day}
-                </text>
-              </g>
-            );
-          })}
         </svg>
 
-        {/* Hover Tooltip */}
         {hoveredIdx !== null && (
-          <div style={{
-            position: 'absolute',
-            top: `${Math.max(8, points[hoveredIdx].y - 75)}px`,
-            left: `${points[hoveredIdx].x - 60}px`,
-            background: 'rgba(15, 20, 32, 0.95)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            borderRadius: '7px',
-            padding: '0.45rem 0.65rem',
-            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.5)',
-            pointerEvents: 'none',
-            zIndex: 10,
-            minWidth: '120px',
-            animation: 'modalEnter 150ms var(--ease-out-smooth) forwards',
-          }}>
-            <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.15rem' }}>
-              {rawData[hoveredIdx].day}
-            </p>
-            <div style={{ fontSize: '0.68rem', display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-              <span style={{ color: '#38bdf8' }}>Total: {rawData[hoveredIdx].total} scans</span>
-              <span style={{ color: 'var(--emerald-400)' }}>Safe: {rawData[hoveredIdx].safe}</span>
-              <span style={{ color: 'var(--rose-400)' }}>Blocked: {rawData[hoveredIdx].blocked}</span>
+          <div
+            className="absolute z-10 pointer-events-none -translate-x-1/2 -translate-y-[120%] flex flex-col gap-1 rounded border border-border/80 bg-card p-2 text-xs shadow-lg backdrop-blur-md"
+            style={{
+              left: `${(points[hoveredIdx].x / width) * 100}%`,
+              top: `${(points[hoveredIdx].y / height) * 100}%`,
+            }}
+          >
+            <div className="font-semibold text-heading font-mono text-[10px]">{points[hoveredIdx].data.day}</div>
+            <div className="flex items-center justify-between gap-3 text-[10px]">
+              <span className="text-muted-foreground">Scans</span>
+              <span className="font-bold text-heading">{points[hoveredIdx].data.total}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-[10px]">
+              <span className="text-danger font-semibold">Blocked</span>
+              <span className="font-bold text-danger">{points[hoveredIdx].data.blocked}</span>
             </div>
           </div>
         )}
       </div>
-
     </div>
   );
 }
