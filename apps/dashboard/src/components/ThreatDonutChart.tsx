@@ -42,7 +42,7 @@ export default function ThreatDonutChart() {
         <h3 className="flex items-center gap-2 text-sm font-semibold text-heading">
           <PieChart className="h-4 w-4 text-[#8b5cf6]" /> Threat Category Distribution
         </h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Proportion of detected web risks</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Proportion of detected web risks (Sample Data)</p>
       </div>
 
       <div className="flex flex-1 flex-wrap items-center justify-around gap-4">

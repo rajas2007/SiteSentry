@@ -77,7 +77,7 @@ export default function App() {
       <footer className="flex-none border-t border-border bg-background">
         {!loading && !error && analysis && (
           <div className="px-3 py-2.5">
-            <a href={(import.meta as { env?: { VITE_DASHBOARD_URL?: string } }).env?.VITE_DASHBOARD_URL || 'http://localhost:3000'} target="_blank" rel="noreferrer" className="inline-flex min-h-10 w-full items-center justify-center gap-2 border px-3 py-2 text-xs font-medium transition-colors border-border bg-background text-heading hover:bg-secondary">
+            <a href={((import.meta as { env?: { VITE_DASHBOARD_URL?: string } }).env?.VITE_DASHBOARD_URL || 'http://localhost:3000') + '/console'} target="_blank" rel="noreferrer" className="inline-flex min-h-10 w-full items-center justify-center gap-2 border px-3 py-2 text-xs font-medium transition-colors border-border bg-background text-heading hover:bg-secondary">
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               View full analysis dashboard
             </a>

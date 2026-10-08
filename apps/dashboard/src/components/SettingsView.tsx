@@ -32,7 +32,7 @@ export default function SettingsView() {
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-heading sm:text-2xl">Platform Configuration & Sensitivity</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Manage detection engine thresholds, third-party API credentials, and audit logging export.
+          Manage detection engine thresholds, third-party API credentials, and audit logging export. (Note: These settings are read-only UI states in this prototype and do not affect the live engine.)
         </p>
       </div>
 

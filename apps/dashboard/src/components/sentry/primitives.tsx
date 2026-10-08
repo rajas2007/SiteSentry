@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "../../lib/utils";
 import { RISK_RANGES, severityFromScore, severityStyle, type Severity } from "../../lib/sentry";

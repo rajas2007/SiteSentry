@@ -76,7 +76,7 @@ export default function SecurityTrendChart() {
           <h3 className="flex items-center gap-2 text-sm font-semibold text-heading">
             <Activity className="h-4 w-4 text-analysis" /> Real-Time Traffic & Interception Volume
           </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">Daily inspect events vs threats neutralized</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Daily inspect events vs threats neutralized (Sample Data)</p>
         </div>
 
         <div className="flex rounded-md border border-border/80 bg-background/30 p-0.5">

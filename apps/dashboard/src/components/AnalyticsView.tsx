@@ -28,7 +28,7 @@ export default function AnalyticsView() {
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-heading sm:text-2xl">Threat Intelligence & OSINT Analytics</h2>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Detailed visibility into external vendor detection consensus, privacy trackers, and domain reputation.
+          Detailed visibility into external vendor detection consensus, privacy trackers, and domain reputation. (Note: The data shown here is for demonstration purposes only and relies on sample datasets.)
         </p>
       </div>
 
