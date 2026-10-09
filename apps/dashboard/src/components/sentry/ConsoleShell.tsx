@@ -68,8 +68,8 @@ export function ConsoleShell({
         </div>
       </aside>
 
-      <div className="min-w-0 flex flex-col h-screen overflow-y-auto">
-        <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-4 border-b border-border/70 bg-background/80 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8">
+      <div className="min-w-0">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 bg-background/65 px-4 py-4 sm:px-6 lg:px-8">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold tracking-tight text-heading sm:text-2xl capitalize">
               {activeTab === 'analytics' ? 'Threat Analytics' : activeTab === 'history' ? 'Scan History' : activeTab}
@@ -96,10 +96,11 @@ export function ConsoleShell({
             </div>
           </form>
         </header>
-        <main id="main-content" className="flex-1 w-full max-w-[1500px] mx-auto p-4 sm:p-6 lg:p-8">
+        <main id="main-content" className="mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>
     </div>
   );
 }
+

@@ -23,7 +23,7 @@ function Metric({
   progress?: number;
 }) {
   return (
-    <div className="min-w-0 glass-card">
+    <div className="min-w-0 flex flex-col p-5 sm:p-6 border border-border/60 bg-card rounded-md shadow-sm">
       <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{label}</h3>
       <p className="mt-2 flex items-baseline gap-1.5 text-2xl font-semibold leading-none tracking-tight text-heading sm:text-3xl">
         {value}
@@ -74,3 +74,4 @@ export default function MetricCards({ metrics }: MetricCardsProps) {
     </div>
   );
 }
+
