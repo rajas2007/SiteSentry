@@ -42,7 +42,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="mx-auto flex h-[620px] w-full min-w-[320px] max-w-[380px] flex-col overflow-hidden border-x border-border bg-card max-sm:h-[min(620px,70svh)] max-sm:min-h-[420px]">
+    <div className="mx-auto flex h-[620px] w-full min-w-0 max-w-[380px] flex-col overflow-hidden border border-border bg-card shadow-[0_18px_48px_rgb(0_0_0/0.3)] max-sm:h-[min(620px,70svh)] max-sm:min-h-[420px]">
       <Header />
       <div className="min-h-0 flex-1 overflow-y-auto bg-background/55">
         {loading && (
@@ -205,3 +205,4 @@ function Result({ data }: { data: PageAnalysisResponse }) {
     </div>
   );
 }
+
