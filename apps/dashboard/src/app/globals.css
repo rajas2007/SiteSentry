@@ -1,5 +1,5 @@
 @import "tailwindcss" source(none);
-@source "../src";
+@source "../";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -284,3 +284,4 @@
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite linear;
 }
+

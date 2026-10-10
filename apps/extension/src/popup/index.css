@@ -1,6 +1,6 @@
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
-@source "../src";
+@source "../";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -245,3 +245,4 @@
     transition-duration: 0.01ms !important;
   }
 }
+
