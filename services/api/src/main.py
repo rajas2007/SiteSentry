@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.api.analytics import router as analytics_router
 from src.api.analyze import router as analyze_router
 from src.core.database import init_db
 from src.core.redis import get_cache
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 
 app.include_router(analyze_router)
+app.include_router(analytics_router)
 
 
 @app.get("/health")

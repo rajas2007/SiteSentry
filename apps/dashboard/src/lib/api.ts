@@ -1,14 +1,12 @@
-import { ScanHistoryItem, DetailedScanResult, DashboardMetrics } from './types';
+import { ScanHistoryItem, DetailedScanResult, DashboardMetrics, AnalyticsOverview } from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export const INITIAL_METRICS: DashboardMetrics = {
-  totalScans: 1248,
-  threatsBlocked: 42,
-  averageTrustScore: 84,
-  privacyViolations: 119,
-  scansTrend: '+14% this week',
-  threatsTrend: '+8% vs last week',
+  totalScans: 0,
+  threatsBlocked: 0,
+  averageTrustScore: 0,
+  privacyViolations: 0,
 };
 
 export const SAMPLE_SCANS: ScanHistoryItem[] = [
@@ -361,4 +359,32 @@ export async function fetchScanDetail(analysis_id: string): Promise<DetailedScan
     console.error('Failed to fetch scan detail:', error);
   }
   return null;
+}
+
+export async function fetchAnalytics(days = 30): Promise<AnalyticsOverview | null> {
+  try {
+    const url = new URL(`${API_BASE_URL}/api/v1/analytics/overview`);
+    url.searchParams.set('days', Math.max(1, Math.min(365, days)).toString());
+
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) {
+      return null;
+    }
+
+    const data = await res.json();
+    if (
+      typeof data.total_scans !== 'number' ||
+      typeof data.threats_blocked !== 'number' ||
+      typeof data.average_trust_score !== 'number' ||
+      !Array.isArray(data.timeline) ||
+      !Array.isArray(data.threat_categories)
+    ) {
+      return null;
+    }
+
+    return data as AnalyticsOverview;
+  } catch (error) {
+    console.warn('Backend unavailable or network error when fetching analytics:', error);
+    return null;
+  }
 }

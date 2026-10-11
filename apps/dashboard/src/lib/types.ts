@@ -67,11 +67,34 @@ export interface DetailedScanResult {
   scanned_at: string;
 }
 
+export interface ThreatCategoryStat {
+  category: string;
+  count: number;
+  percentage: number;
+}
+
+export interface DailyTimelinePoint {
+  date: string;
+  total: number;
+  safe: number;
+  blocked: number;
+}
+
+export interface AnalyticsOverview {
+  period_days: number;
+  total_scans: number;
+  threats_blocked: number;
+  average_trust_score: number;
+  privacy_violations: number;
+  risk_distribution: Record<string, number>;
+  verdict_distribution: Record<string, number>;
+  threat_categories: ThreatCategoryStat[];
+  timeline: DailyTimelinePoint[];
+}
+
 export interface DashboardMetrics {
   totalScans: number;
   threatsBlocked: number;
   averageTrustScore: number;
   privacyViolations: number;
-  scansTrend: string;
-  threatsTrend: string;
 }

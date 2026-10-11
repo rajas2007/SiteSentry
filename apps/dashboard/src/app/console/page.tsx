@@ -16,15 +16,18 @@ import {
   checkBackendHealth,
   fetchScanHistory,
   performLiveScan,
-  fetchScanDetail
+  fetchScanDetail,
+  fetchAnalytics
 } from '../../lib/api';
-import { ScanHistoryItem, DetailedScanResult, DashboardMetrics } from '../../lib/types';
+import { ScanHistoryItem, DetailedScanResult, DashboardMetrics, AnalyticsOverview } from '../../lib/types';
 import { ShieldCheck, Server, Database, Terminal } from 'lucide-react';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'analytics' | 'settings'>('overview');
   const [isBackendConnected, setIsBackendConnected] = useState(false);
-  const [metrics, setMetrics] = useState<DashboardMetrics>(INITIAL_METRICS);
+  const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const analyticsFetchIdRef = React.useRef(0);
   const [scans, setScans] = useState<ScanHistoryItem[]>(SAMPLE_SCANS);
   const [selectedScan, setSelectedScan] = useState<DetailedScanResult | null>(null);
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
@@ -34,9 +37,27 @@ export default function DashboardPage() {
       const isOnline = await checkBackendHealth();
       setIsBackendConnected(isOnline);
 
-      const historyData = await fetchScanHistory(20);
-      if (historyData.items && historyData.items.length > 0) {
-        setScans(historyData.items);
+      if (isOnline) {
+        setAnalyticsLoading(true);
+        const fetchId = ++analyticsFetchIdRef.current;
+        const [historyData, analyticsData] = await Promise.all([
+          fetchScanHistory(20),
+          fetchAnalytics(30),
+        ]);
+        if (historyData.items && historyData.items.length > 0) {
+          setScans(historyData.items);
+        }
+        if (fetchId === analyticsFetchIdRef.current) {
+          setAnalytics(analyticsData);
+          setAnalyticsLoading(false);
+        }
+      } else {
+        setAnalytics(null);
+        setAnalyticsLoading(false);
+        const historyData = await fetchScanHistory(20);
+        if (historyData.items && historyData.items.length > 0) {
+          setScans(historyData.items);
+        }
       }
     }
     init();
@@ -64,16 +85,33 @@ export default function DashboardPage() {
     setNewlyAddedId(result.analysis_id);
     setScans((prev) => [newItem, ...prev]);
 
-    setMetrics((prev) => ({
-      ...prev,
-      totalScans: prev.totalScans + 1,
-      threatsBlocked: result.severity === 'high' ? prev.threatsBlocked + 1 : prev.threatsBlocked,
-    }));
+    // Fetch authoritative analytics overview from backend
+    if (isBackendConnected) {
+      const fetchId = ++analyticsFetchIdRef.current;
+      fetchAnalytics(30).then((freshAnalytics) => {
+        if (fetchId !== analyticsFetchIdRef.current) {
+          return; // Discard stale response
+        }
+        if (freshAnalytics) {
+          setAnalytics(freshAnalytics);
+        }
+      });
+    }
 
     setTimeout(() => {
       setNewlyAddedId(null);
     }, 2500);
   };
+
+
+  const metrics: DashboardMetrics | null = analytics
+    ? {
+        totalScans: analytics.total_scans,
+        threatsBlocked: analytics.threats_blocked,
+        averageTrustScore: analytics.average_trust_score,
+        privacyViolations: analytics.privacy_violations,
+      }
+    : null;
 
   const [loadingScanId, setLoadingScanId] = useState<string | null>(null);
   const fetchIdRef = React.useRef(0);
@@ -134,7 +172,7 @@ export default function DashboardPage() {
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
             <div>
-              <MetricCards metrics={metrics} />
+              <MetricCards metrics={metrics} isLoading={analyticsLoading} />
 
               <LiveScanner
                 onScanComplete={handleScanComplete}
@@ -142,8 +180,15 @@ export default function DashboardPage() {
               />
 
               <div className="mb-8 grid gap-5 lg:grid-cols-2">
-                <SecurityTrendChart />
-                <ThreatDonutChart />
+                <SecurityTrendChart
+                  timeline={analytics?.timeline ?? null}
+                  isLoading={analyticsLoading}
+                />
+                <ThreatDonutChart
+                  categories={analytics?.threat_categories ?? null}
+                  totalScans={analytics?.total_scans ?? null}
+                  isLoading={analyticsLoading}
+                />
               </div>
 
               <RecentScansTable
@@ -170,7 +215,7 @@ export default function DashboardPage() {
 
           {/* THREAT ANALYTICS TAB */}
           {activeTab === 'analytics' && (
-            <AnalyticsView />
+            <AnalyticsView analytics={analytics} isLoading={analyticsLoading} />
           )}
 
           {/* SETTINGS TAB */}

@@ -3,10 +3,10 @@
 import React from 'react';
 import { DashboardMetrics } from '../lib/types';
 import AnimatedNumber from './AnimatedNumber';
-import { cn } from '../lib/utils';
 
 interface MetricCardsProps {
-  metrics: DashboardMetrics;
+  metrics: DashboardMetrics | null;
+  isLoading?: boolean;
 }
 
 function Metric({
@@ -38,7 +38,7 @@ function Metric({
           aria-valuemax={100}
           aria-valuenow={progress}
         >
-          <div className="h-full bg-analysis transition-all duration-700" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-analysis transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
         </div>
       )}
       {note && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{note}</p>}
@@ -46,32 +46,53 @@ function Metric({
   );
 }
 
-export default function MetricCards({ metrics }: MetricCardsProps) {
+export default function MetricCards({ metrics, isLoading = false }: MetricCardsProps) {
+  if (isLoading) {
+    return (
+      <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-4 mb-8">
+        <Metric label="Total Scans" value={<span className="text-muted-foreground animate-pulse">—</span>} note="Loading live analytics..." />
+        <Metric label="High-Risk / Blocked" value={<span className="text-muted-foreground animate-pulse">—</span>} note="Loading live analytics..." />
+        <Metric label="Avg Trust Score" value={<span className="text-muted-foreground animate-pulse">—</span>} note="Loading live analytics..." />
+        <Metric label="Privacy Violations" value={<span className="text-muted-foreground animate-pulse">—</span>} note="Loading live analytics..." />
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-4 mb-8">
+        <Metric label="Total Scans" value={<span className="text-muted-foreground">—</span>} note="Analytics unavailable (Backend offline)" />
+        <Metric label="High-Risk / Blocked" value={<span className="text-muted-foreground">—</span>} note="Analytics unavailable (Backend offline)" />
+        <Metric label="Avg Trust Score" value={<span className="text-muted-foreground">—</span>} note="Analytics unavailable (Backend offline)" />
+        <Metric label="Privacy Violations" value={<span className="text-muted-foreground">—</span>} note="Analytics unavailable (Backend offline)" />
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-4 mb-8">
-      <Metric 
-        label="Total Scans" 
+      <Metric
+        label="Total Scans"
         value={<AnimatedNumber value={metrics.totalScans} />}
-        note={`Trending ${metrics.scansTrend} • Inspected in real-time`}
+        note="Inspected in requested period"
       />
-      <Metric 
-        label="High-Risk Blocked" 
+      <Metric
+        label="High-Risk / Blocked"
         value={<AnimatedNumber value={metrics.threatsBlocked} />}
-        note="Active Interventions • Phishing & malware"
+        note="Blocked verdict or high risk severity"
       />
-      <Metric 
-        label="Avg Trust Score" 
-        value={<AnimatedNumber value={metrics.averageTrustScore} format={false} />}
+      <Metric
+        label="Avg Trust Score"
+        value={<AnimatedNumber value={Math.round(metrics.averageTrustScore)} format={false} />}
         unit="/ 100"
         progress={metrics.averageTrustScore}
-        note="Healthy average across network"
+        note={metrics.totalScans > 0 ? `Calculated from ${metrics.totalScans} scan records` : "No scans recorded in period"}
       />
-      <Metric 
-        label="Privacy Violations" 
+      <Metric
+        label="Privacy Violations"
         value={<AnimatedNumber value={metrics.privacyViolations} />}
-        note="AI Verified • Data clauses & pixels"
+        note="Flagged as privacy abuse category"
       />
     </div>
   );
 }
-

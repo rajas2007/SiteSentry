@@ -1,109 +1,130 @@
 'use client';
 
 import React from 'react';
-import { Server, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Server, CheckCircle2, ShieldAlert, BarChart3, ShieldCheck } from 'lucide-react';
+import { AnalyticsOverview } from '../lib/types';
 import { cn } from '../lib/utils';
 
-export default function AnalyticsView() {
-  const osintProviders = [
-    { name: 'Google Safe Browsing v4', queries: 1248, detections: 34, coverage: '99.8%' },
-    { name: 'VirusTotal v3 Multi-Vendor', queries: 1248, detections: 41, coverage: '99.2%' },
-    { name: 'SiteSentry Structural Heuristics', queries: 1248, detections: 58, coverage: '100%' },
-  ];
+interface AnalyticsViewProps {
+  analytics?: AnalyticsOverview | null;
+  isLoading?: boolean;
+}
 
-  const safeDomains = [
-    { domain: 'github.com', score: 98, totalScans: 412, status: 'Verified High Trust' },
-    { domain: 'developer.mozilla.org', score: 95, totalScans: 285, status: 'Educational Authority' },
-    { domain: 'chat.openai.com', score: 96, totalScans: 190, status: 'Valid EV Transport' },
-  ];
-
-  const maliciousDomains = [
-    { domain: 'verify-account.security-update.xyz', score: 12, reason: 'Credential Harvesting & Fake Login', blocked: 'Blocked 28 times' },
-    { domain: 'crypto-airdrop-rewards-free.net', score: 25, reason: 'Deceptive Phishing Payload', blocked: 'Blocked 14 times' },
-    { domain: 'shopping-deals-unlimited.biz', score: 48, reason: 'Excessive Privacy Exploitation', blocked: 'Blocked 9 times' },
-  ];
-
+export default function AnalyticsView({ analytics = null, isLoading = false }: AnalyticsViewProps) {
   return (
     <div className="page-transition flex flex-col gap-8 max-w-[1200px]">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight text-heading sm:text-2xl">Threat Intelligence & OSINT Analytics</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-heading sm:text-2xl">
+          Threat Intelligence & Telemetry Analytics
+        </h2>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Detailed visibility into external vendor detection consensus, privacy trackers, and domain reputation. (Note: The data shown here is for demonstration purposes only and relies on sample datasets.)
+          Real-time visibility into decision distributions, risk severity tiers, and threat detection intelligence calculated from persisted database records.
         </p>
       </div>
 
+      {/* Decision Engine Breakdown (Real Data) */}
       <div className="rounded-md border border-border/60 bg-card p-6 scan-surface">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-heading">
-          <Server className="h-4 w-4 text-analysis" /> OSINT Engine Consensus & Coverage
+          <BarChart3 className="h-4 w-4 text-analysis" /> Decision Matrix & Risk Severity Distribution
         </h3>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {osintProviders.map((prov, i) => (
-            <div key={i} className="rounded-md border border-border/50 bg-background/30 p-5">
-              <div className="mb-4 flex items-start justify-between gap-2">
-                <span className="font-semibold text-sm text-heading">{prov.name}</span>
-                <span className="inline-flex rounded-sm bg-analysis/20 px-2 py-0.5 text-[10px] font-semibold text-analysis">
-                  {prov.coverage}
+
+        {isLoading ? (
+          <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
+            Loading decision matrix data...
+          </div>
+        ) : !analytics ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            Decision analytics unavailable (Backend offline)
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Low / Allow */}
+            <div className="rounded-md border border-border/50 bg-background/30 p-5">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <span className="font-semibold text-sm text-heading">Low Risk / Permitted</span>
+                <span className="inline-flex rounded-sm bg-safe/20 px-2 py-0.5 text-[10px] font-semibold text-safe">
+                  ALLOW
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Total Queries:</span>
-                <span className="font-semibold text-heading">{prov.queries.toLocaleString()}</span>
+              <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                <span>Total Scans:</span>
+                <span className="text-xl font-bold text-safe font-mono">
+                  {analytics.risk_distribution['low'] ?? 0}
+                </span>
               </div>
-              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Threat Detections:</span>
-                <span className="font-semibold text-danger">{prov.detections.toLocaleString()}</span>
-              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Passed heuristics with valid transport and no blacklists.
+              </p>
             </div>
-          ))}
-        </div>
+
+            {/* Medium / Caution */}
+            <div className="rounded-md border border-border/50 bg-background/30 p-5">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <span className="font-semibold text-sm text-heading">Medium Risk / Elevated</span>
+                <span className="inline-flex rounded-sm bg-caution/20 px-2 py-0.5 text-[10px] font-semibold text-caution">
+                  WARN
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                <span>Total Scans:</span>
+                <span className="text-xl font-bold text-caution font-mono">
+                  {analytics.risk_distribution['medium'] ?? 0}
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Exhibits tracking beacons, anomalous DNS, or suspicious keywords.
+              </p>
+            </div>
+
+            {/* High / Block */}
+            <div className="rounded-md border border-border/50 bg-background/30 p-5">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <span className="font-semibold text-sm text-heading">High Risk / Intervention</span>
+                <span className="inline-flex rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold text-danger">
+                  BLOCK
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                <span>Total Scans:</span>
+                <span className="text-xl font-bold text-danger font-mono">
+                  {analytics.threats_blocked}
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Active credential harvesting, malware signatures, or blacklists.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Future Feed Placeholders (Honest States) */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Safe Domains */}
+        {/* Safe Domains Section */}
         <div className="rounded-md border border-border/60 bg-card p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-heading">
-            <CheckCircle2 className="h-4 w-4 text-safe" /> Top Verified Trusted Domains
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-heading">
+            <CheckCircle2 className="h-4 w-4 text-safe" /> Top Verified Authority Domains
           </h3>
-          <div className="space-y-4">
-            {safeDomains.map((d, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-border/40 pb-4 last:border-0 last:pb-0">
-                <div className="min-w-0 flex-1 pr-4">
-                  <p className="truncate font-semibold text-sm text-heading">{d.domain}</p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">{d.status}</p>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-baseline justify-end gap-1">
-                    <span className="text-lg font-bold text-safe">{d.score}</span>
-                    <span className="text-[10px] text-muted-foreground">/100</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">{d.totalScans} scans</p>
-                </div>
-              </div>
-            ))}
+          <div className="rounded border border-dashed border-border/60 bg-background/30 p-6 text-center">
+            <ShieldCheck className="mx-auto h-8 w-8 text-muted-foreground/60 mb-2" />
+            <p className="text-xs font-semibold text-heading">Not available yet</p>
+            <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+              Domain trust certificates and verified institutional authority feeds are scheduled for a future audit milestone.
+            </p>
           </div>
         </div>
 
-        {/* Malicious Domains */}
+        {/* Malicious Domains Section */}
         <div className="rounded-md border border-border/60 bg-card p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-heading">
-            <ShieldAlert className="h-4 w-4 text-danger" /> Most Frequent Active Threats
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-heading">
+            <ShieldAlert className="h-4 w-4 text-danger" /> Multi-Vendor Threat Intelligence Telemetry
           </h3>
-          <div className="space-y-4">
-            {maliciousDomains.map((d, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-border/40 pb-4 last:border-0 last:pb-0">
-                <div className="min-w-0 flex-1 pr-4">
-                  <p className="truncate font-semibold text-sm text-heading">{d.domain}</p>
-                  <p className="mt-1 truncate text-[11px] text-danger">{d.reason}</p>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-baseline justify-end gap-1">
-                    <span className="text-lg font-bold text-danger">{d.score}</span>
-                    <span className="text-[10px] text-muted-foreground">/100</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">{d.blocked}</p>
-                </div>
-              </div>
-            ))}
+          <div className="rounded border border-dashed border-border/60 bg-background/30 p-6 text-center">
+            <Server className="mx-auto h-8 w-8 text-muted-foreground/60 mb-2" />
+            <p className="text-xs font-semibold text-heading">Not available yet</p>
+            <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+              Google Safe Browsing and VirusTotal vendor query telemetry logs are currently logged per scan in the database and will be aggregated in an upcoming release.
+            </p>
           </div>
         </div>
       </div>
