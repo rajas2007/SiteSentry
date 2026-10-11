@@ -170,3 +170,45 @@ def test_analyze_endpoint_privacy_fields():
         # However, threat_category might change to "privacy_abuse" if the engine does that
         assert data["score"] <= 80
         assert "High Privacy Risk: Tracking" in data["factors"]
+
+@pytest.mark.asyncio
+async def test_get_scan_detail_success(setup_database):
+    from src.core.database import get_session_factory
+    from src.models.scan import ScanHistory
+
+    # Retrieve a scan from the history first
+    history_res = client.get("/api/v1/history?limit=1")
+    assert history_res.status_code == 200
+    history_data = history_res.json()
+    if history_data["items"]:
+        scan_id = history_data["items"][0]["id"]
+
+        detail_res = client.get(f"/api/v1/history/{scan_id}")
+        assert detail_res.status_code == 200
+        detail_data = detail_res.json()
+
+        assert detail_data["id"] == scan_id
+
+        # Verify against the actual stored database record
+        session_factory = get_session_factory()
+        async with session_factory() as session:
+            db_scan = await session.get(ScanHistory, scan_id)
+            assert db_scan is not None
+
+            report = db_scan.full_report or {}
+
+            assert detail_data.get("confidence") == report.get("confidence", 0.0)
+            assert detail_data.get("factors") == report.get("factors", [])
+            assert detail_data.get("recommendations") == report.get("recommendations", [])
+
+            expected_decision = report.get("decision", {
+                "action": db_scan.verdict,
+                "severity": db_scan.severity,
+                "ui": {"color": "slate"}
+            })
+            assert detail_data.get("decision") == expected_decision
+            assert detail_data.get("threat_intelligence") == report.get("threat_intelligence")
+
+def test_get_scan_detail_not_found(setup_database):
+    res = client.get("/api/v1/history/non_existent_id")
+    assert res.status_code == 404

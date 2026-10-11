@@ -10,12 +10,13 @@ import RecentScansTable from '../../components/RecentScansTable';
 import ScanDetailModal from '../../components/ScanDetailModal';
 import AnalyticsView from '../../components/AnalyticsView';
 import SettingsView from '../../components/SettingsView';
-import { 
-  INITIAL_METRICS, 
-  SAMPLE_SCANS, 
-  checkBackendHealth, 
-  fetchScanHistory, 
-  performLiveScan 
+import {
+  INITIAL_METRICS,
+  SAMPLE_SCANS,
+  checkBackendHealth,
+  fetchScanHistory,
+  performLiveScan,
+  fetchScanDetail
 } from '../../lib/api';
 import { ScanHistoryItem, DetailedScanResult, DashboardMetrics } from '../../lib/types';
 import { ShieldCheck, Server, Database, Terminal } from 'lucide-react';
@@ -74,57 +75,50 @@ export default function DashboardPage() {
     }, 2500);
   };
 
-  const handleInspectScanItem = (item: ScanHistoryItem) => {
+  const [loadingScanId, setLoadingScanId] = useState<string | null>(null);
+  const fetchIdRef = React.useRef(0);
+
+  const handleInspectScanItem = async (item: ScanHistoryItem) => {
+    if (isBackendConnected) {
+      const currentFetchId = ++fetchIdRef.current;
+      setLoadingScanId(item.id);
+
+      const detailed = await fetchScanDetail(item.id);
+
+      if (currentFetchId !== fetchIdRef.current) {
+        return; // Stale request
+      }
+
+      setLoadingScanId(null);
+
+      if (detailed) {
+        setSelectedScan(detailed);
+        return;
+      }
+    }
+
     const isSafe = item.score >= 80;
     const isMedium = item.score >= 50 && item.score < 80;
 
-    const detailed: DetailedScanResult = {
+    const fallback: DetailedScanResult = {
       analysis_id: item.id,
       url: item.url,
       domain: item.domain,
       score: item.score,
       severity: item.severity,
-      confidence: 0.95,
+      confidence: 0,
       threat_category: item.threat_category,
-      recommendations: item.score < 50
-        ? ['Leave site immediately.', 'Do not enter passwords or personal credentials.']
-        : ['Connection is verified and safe for general browsing.'],
-      factors: item.score < 50
-        ? [
-            'Flagged by multi-vendor OSINT threat intelligence databases',
-            'Suspicious form characteristics matching credential theft campaigns',
-            'Domain exhibits newly registered or anomalous hosting attributes',
-          ]
-        : [
-            'Connection is encrypted (HTTPS)',
-            'No blacklists triggered across 80+ security engines',
-            'Zero suspicious form or tracking payloads detected',
-          ],
+      recommendations: [],
+      factors: ['Full report unavailable. (Sample data or backend disconnected)'],
       decision: {
         action: item.verdict,
         severity: item.severity,
         ui: { color: isSafe ? 'emerald' : isMedium ? 'amber' : 'rose' },
       },
-      threat_intelligence: {
-        sources: [
-          {
-            provider: 'Google Safe Browsing',
-            status: item.score < 50 ? 'detected' : 'clean',
-            categories: item.score < 50 ? ['Social Engineering (Phishing)'] : [],
-            summary: item.score < 50 ? 'Flagged as deceptive URL' : 'No threats detected',
-          },
-          {
-            provider: 'VirusTotal',
-            status: item.score < 50 ? 'detected' : 'clean',
-            categories: item.score < 50 ? ['Malicious', 'Phishing'] : [],
-            summary: item.score < 50 ? 'Flagged by 8 security vendors' : 'Clean on all 84 engines',
-          },
-        ],
-      },
       scanned_at: item.scanned_at,
     };
 
-    setSelectedScan(detailed);
+    setSelectedScan(fallback);
   };
 
   return (
@@ -136,7 +130,7 @@ export default function DashboardPage() {
         isBackendConnected={isBackendConnected}
       >
         <div key={activeTab} className="page-transition">
-          
+
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
             <div>
@@ -157,6 +151,7 @@ export default function DashboardPage() {
                 onSelectScan={handleInspectScanItem}
                 title="Recent Live Scans (Latest 6)"
                 newlyAddedId={newlyAddedId}
+                loadingScanId={loadingScanId}
               />
             </div>
           )}
@@ -169,6 +164,7 @@ export default function DashboardPage() {
               title="Complete Audit Ledger & Scan History"
               isFullHistory={true}
               newlyAddedId={newlyAddedId}
+              loadingScanId={loadingScanId}
             />
           )}
 

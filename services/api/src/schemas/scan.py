@@ -21,3 +21,10 @@ class ScanHistoryResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+class DetailedScanHistoryResponse(ScanHistoryItem):
+    confidence: float
+    recommendations: list[str]
+    factors: list[str]
+    decision: dict
+    threat_intelligence: dict | None = None

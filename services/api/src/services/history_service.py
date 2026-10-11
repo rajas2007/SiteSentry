@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.scan import ScanHistory
-from src.schemas.scan import ScanHistoryItem, ScanHistoryResponse
+from src.schemas.scan import ScanHistoryItem, ScanHistoryResponse, DetailedScanHistoryResponse
 
 
 class HistoryService:
@@ -49,4 +49,33 @@ class HistoryService:
             total=total,
             limit=limit,
             offset=offset,
+        )
+
+    @staticmethod
+    async def get_scan_by_id(db: AsyncSession, scan_id: str) -> DetailedScanHistoryResponse | None:
+        scan = await db.get(ScanHistory, scan_id)
+        if not scan:
+            return None
+
+        report = scan.full_report or {}
+
+        # safely handle legacy records where keys might be missing
+        return DetailedScanHistoryResponse(
+            id=scan.id,
+            url=scan.full_url,
+            domain=scan.domain,
+            score=scan.final_security_score,
+            severity=scan.severity,
+            verdict=scan.verdict,
+            threat_category=scan.threat_category,
+            scanned_at=scan.scanned_at,
+            confidence=report.get("confidence", 0.0),
+            recommendations=report.get("recommendations", []),
+            factors=report.get("factors", []),
+            decision=report.get("decision", {
+                "action": scan.verdict,
+                "severity": scan.severity,
+                "ui": {"color": "slate"}
+            }),
+            threat_intelligence=report.get("threat_intelligence", None),
         )

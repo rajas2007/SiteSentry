@@ -12,6 +12,7 @@ interface RecentScansTableProps {
   title?: string;
   isFullHistory?: boolean;
   newlyAddedId?: string | null;
+  loadingScanId?: string | null;
 }
 
 const severityStyle: Record<string, { bg: string; border: string; text: string }> = {
@@ -26,6 +27,7 @@ export default function RecentScansTable({
   title = 'Real-Time Scan Audit Ledger',
   isFullHistory = false,
   newlyAddedId = null,
+  loadingScanId = null,
 }: RecentScansTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'high' | 'medium' | 'low'>('all');
@@ -150,7 +152,16 @@ export default function RecentScansTable({
                       onClick={() => onSelectScan(scan)}
                       className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-secondary/50 px-2.5 py-1.5 text-[10px] font-medium text-heading transition-colors hover:bg-secondary"
                     >
-                      <Eye className="h-3 w-3" /> Inspect
+                      {loadingScanId === scan.id ? (
+                        <>
+                          <span className="h-3 w-3 animate-spin rounded-full border-2 border-analysis border-t-transparent" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-3 w-3" /> Inspect
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

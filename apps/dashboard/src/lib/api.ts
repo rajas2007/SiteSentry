@@ -331,3 +331,34 @@ export async function performLiveScan(targetUrl: string): Promise<DetailedScanRe
     scanned_at: new Date().toISOString(),
   };
 }
+
+export async function fetchScanDetail(analysis_id: string): Promise<DetailedScanResult | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/history/${analysis_id}`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        analysis_id: data.id,
+        url: data.url,
+        domain: data.domain,
+        score: data.score,
+        severity: data.severity,
+        verdict: data.verdict,
+        threat_category: data.threat_category,
+        scanned_at: data.scanned_at,
+        confidence: data.confidence || 0,
+        recommendations: data.recommendations || [],
+        factors: data.factors || [],
+        decision: data.decision || {
+          action: data.verdict,
+          severity: data.severity,
+          ui: { color: 'slate' }
+        },
+        threat_intelligence: data.threat_intelligence,
+      } as DetailedScanResult;
+    }
+  } catch (error) {
+    console.error('Failed to fetch scan detail:', error);
+  }
+  return null;
+}
