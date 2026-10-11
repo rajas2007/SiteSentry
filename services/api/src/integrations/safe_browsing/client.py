@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from src.core.config import get_settings
+from src.integrations.exceptions import ThreatIntelUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +25,13 @@ class GoogleSafeBrowsingClient:
         """Query Google Safe Browsing v4 for known threats.
 
         Returns a list of threat types (e.g. ['SOCIAL_ENGINEERING', 'MALWARE'])
-        or empty list if safe, unconfigured, or on error.
+        or empty list if safe. Raises ThreatIntelUnavailableError on missing credentials or error.
         """
         if not self.api_key or self.api_key in ("mock_key", "dummy_key", ""):
             logger.debug(
                 "Google Safe Browsing API key not configured or set to mock; skipping live query."
             )
-            return []
+            raise ThreatIntelUnavailableError("API key not configured")
 
         payload: dict[str, Any] = {
             "client": {"clientId": "sitesentry", "clientVersion": "0.1.0"},
@@ -63,7 +64,13 @@ class GoogleSafeBrowsingClient:
                 logger.warning(
                     f"Google Safe Browsing returned HTTP {response.status_code}: {response.text}"
                 )
+                raise ThreatIntelUnavailableError(
+                    f"Google Safe Browsing returned HTTP {response.status_code}",
+                    status_code=response.status_code,
+                )
+        except httpx.TimeoutException as e:
+            logger.warning(f"Google Safe Browsing lookup timed out for {url}: {e}")
+            raise ThreatIntelUnavailableError("Google Safe Browsing timed out") from e
         except (httpx.HTTPError, OSError) as e:
             logger.warning(f"Google Safe Browsing lookup failed for {url}: {e}")
-
-        return []
+            raise ThreatIntelUnavailableError(f"Google Safe Browsing lookup failed: {e}") from e

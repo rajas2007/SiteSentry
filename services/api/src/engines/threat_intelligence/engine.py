@@ -33,8 +33,11 @@ class ThreatIntelligenceEngine:
         if self.cache:
             cached = await self.cache.get_osint(domain)
             if cached:
-                logger.info(f"OSINT cache hit for domain: {domain}")
-                return UnifiedThreatObject(**cached)
+                cached_obj = UnifiedThreatObject(**cached)
+                if cached_obj.data_completeness:
+                    logger.info(f"OSINT cache hit for domain: {domain}")
+                    return cached_obj
+
 
         # 2. Concurrently query external APIs on cache miss
         blacklists_triggered: list[str] = []
@@ -85,7 +88,9 @@ class ThreatIntelligenceEngine:
                 logger.warning(f"Safe Browsing query raised exception: {gsb_results}")
                 data_completeness = False
                 gsb_status = "unavailable"
-                gsb_summary = "Service unavailable"
+                gsb_summary = (
+                    str(gsb_results) if str(gsb_results) else "Service unavailable"
+                )
 
             sources.append(
                 ProviderStatus(
@@ -129,7 +134,9 @@ class ThreatIntelligenceEngine:
                 logger.warning(f"VirusTotal query raised exception: {vt_results}")
                 data_completeness = False
                 vt_status = "unavailable"
-                vt_summary = "Service unavailable"
+                vt_summary = (
+                    str(vt_results) if str(vt_results) else "Service unavailable"
+                )
 
             sources.append(
                 ProviderStatus(
@@ -168,8 +175,8 @@ class ThreatIntelligenceEngine:
             sources=sources,
         )
 
-        # 3. Cache normalized result in Redis (24-hour TTL)
-        if self.cache:
+        # 3. Cache normalized result in Redis (24-hour TTL) only if complete
+        if self.cache and report.data_completeness:
             await self.cache.set_osint(domain, report.model_dump(mode="json"))
 
         return report
