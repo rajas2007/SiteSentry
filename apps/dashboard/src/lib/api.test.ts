@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchAnalytics } from './api';
+import { fetchAnalytics, fetchScanHistory, fetchScanDetail, SAMPLE_SCANS } from './api';
 
 describe('fetchAnalytics', () => {
   const originalFetch = global.fetch;
@@ -155,5 +155,157 @@ describe('fetchAnalytics', () => {
     // Stale response must not overwrite the newer request
     expect(currentAnalytics.total_scans).toBe(105);
     expect(currentAnalytics.average_trust_score).toBe(90.0);
+  });
+});
+
+describe('fetchScanHistory', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('successfully returns records from backend when available', async () => {
+    const mockItems = [
+      {
+        id: 'scan-real-1',
+        url: 'https://real-site.org',
+        domain: 'real-site.org',
+        score: 92,
+        severity: 'low' as const,
+        verdict: 'allow' as const,
+        threat_category: 'safe',
+        scanned_at: '2026-10-11T12:00:00.000Z',
+      },
+    ];
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: mockItems,
+        total: 1,
+        limit: 20,
+        offset: 0,
+      }),
+    });
+
+    const result = await fetchScanHistory(20, 0);
+    expect(result).toEqual({ items: mockItems, total: 1 });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/history?limit=20&offset=0'),
+      expect.any(Object)
+    );
+  });
+
+  it('returns an actual empty list when backend response contains zero scans', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [],
+        total: 0,
+        limit: 20,
+        offset: 0,
+      }),
+    });
+
+    const result = await fetchScanHistory(20, 0);
+    expect(result).toEqual({ items: [], total: 0 });
+    // Must NOT return SAMPLE_SCANS
+    expect(result.items).toHaveLength(0);
+  });
+
+  it('falls back to demo/sample scans when backend is unavailable (network error)', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Failed to connect'));
+
+    const result = await fetchScanHistory(10, 0);
+    expect(result.items).toHaveLength(10);
+    expect(result.items).toEqual(SAMPLE_SCANS.slice(0, 10));
+    expect(result.total).toBe(SAMPLE_SCANS.length);
+  });
+
+  it('falls back to demo/sample scans when backend returns an HTTP error status', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+
+    const result = await fetchScanHistory(5, 0);
+    expect(result.items).toHaveLength(5);
+    expect(result.items).toEqual(SAMPLE_SCANS.slice(0, 5));
+    expect(result.total).toBe(SAMPLE_SCANS.length);
+  });
+
+  it('preserves domain filtering and pagination in fallback mode', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Offline'));
+
+    const result = await fetchScanHistory(5, 0, 'github.com');
+    expect(result.items.every(s => s.domain.includes('github.com'))).toBe(true);
+    expect(result.total).toBeGreaterThan(0);
+  });
+});
+
+describe('fetchScanDetail', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('successfully retrieves and parses scan detail by id', async () => {
+    const mockDetail = {
+      id: 'scan-123',
+      url: 'https://example.com',
+      domain: 'example.com',
+      score: 95,
+      severity: 'low',
+      verdict: 'allow',
+      threat_category: 'safe',
+      scanned_at: '2026-10-11T12:00:00.000Z',
+      confidence: 0.95,
+      recommendations: ['Safe'],
+      factors: ['HTTPS'],
+      decision: { action: 'allow', severity: 'low', ui: { color: 'emerald' } },
+      threat_intelligence: null,
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockDetail,
+    });
+
+    const result = await fetchScanDetail('scan-123');
+    expect(result).not.toBeNull();
+    expect(result?.analysis_id).toBe('scan-123');
+    expect(result?.url).toBe('https://example.com');
+    expect(result?.score).toBe(95);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/history/scan-123'),
+      expect.any(Object)
+    );
+  });
+
+  it('returns null when scan is not found (404)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+
+    const result = await fetchScanDetail('nonexistent-id');
+    expect(result).toBeNull();
+  });
+
+  it('returns null on network failure', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Connection timeout'));
+
+    const result = await fetchScanDetail('scan-123');
+    expect(result).toBeNull();
   });
 });

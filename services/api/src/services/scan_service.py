@@ -126,11 +126,13 @@ class ScanService:
     ) -> None:
         try:
             now = datetime.now(UTC)
+            privacy_score_val = getattr(response, "privacy_score", response.score)
             scan_record = ScanHistory(
                 id=response.analysis_id,
                 domain=request.hostname,
                 full_url=str(request.url),
                 final_security_score=response.score,
+                final_privacy_score=privacy_score_val,
                 final_trust_score=response.score,
                 threat_category=response.threat_category,
                 verdict=response.decision.action,
@@ -152,6 +154,7 @@ class ScanService:
             domain_rep = await db.get(DomainReputation, request.hostname)
             if domain_rep:
                 domain_rep.security_score = response.score
+                domain_rep.privacy_score = privacy_score_val
                 domain_rep.trust_score = response.score
                 domain_rep.last_scanned = now
                 domain_rep.aggregated_findings = response.factors
@@ -159,6 +162,7 @@ class ScanService:
                 new_rep = DomainReputation(
                     domain=request.hostname,
                     security_score=response.score,
+                    privacy_score=privacy_score_val,
                     trust_score=response.score,
                     last_scanned=now,
                     aggregated_findings=response.factors,

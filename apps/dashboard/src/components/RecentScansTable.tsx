@@ -13,6 +13,7 @@ interface RecentScansTableProps {
   isFullHistory?: boolean;
   newlyAddedId?: string | null;
   loadingScanId?: string | null;
+  emptyMessage?: string;
 }
 
 const severityStyle: Record<string, { bg: string; border: string; text: string }> = {
@@ -28,6 +29,7 @@ export default function RecentScansTable({
   isFullHistory = false,
   newlyAddedId = null,
   loadingScanId = null,
+  emptyMessage = 'No scans recorded yet.',
 }: RecentScansTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'high' | 'medium' | 'low'>('all');
@@ -170,7 +172,7 @@ export default function RecentScansTable({
           })
         ) : (
           <div className="p-8 text-center text-xs text-muted-foreground">
-            No scans match the active search or severity filter.
+            {scans.length === 0 ? emptyMessage : 'No scans match the active search or severity filter.'}
           </div>
         )}
       </ol>

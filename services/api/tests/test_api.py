@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from src.core.database import init_db
+from src.core.database import init_db, reset_db
 from src.main import app
 
 
@@ -37,6 +37,9 @@ def setup_database():
 
     # Ensure tables are created in SQLite
     asyncio.run(init_db())
+    reset_db()
+    yield
+    reset_db()
 
 
 client = TestClient(app)
@@ -176,39 +179,91 @@ async def test_get_scan_detail_success(setup_database):
     from src.core.database import get_session_factory
     from src.models.scan import ScanHistory
 
-    # Retrieve a scan from the history first
+    # Retrieve a scan from the history first (seed if empty)
     history_res = client.get("/api/v1/history?limit=1")
     assert history_res.status_code == 200
     history_data = history_res.json()
-    if history_data["items"]:
-        scan_id = history_data["items"][0]["id"]
+    if not history_data["items"]:
+        client.post("/api/v1/analyze", json=SAMPLE_PAYLOAD)
+        history_res = client.get("/api/v1/history?limit=1")
+        assert history_res.status_code == 200
+        history_data = history_res.json()
 
-        detail_res = client.get(f"/api/v1/history/{scan_id}")
-        assert detail_res.status_code == 200
-        detail_data = detail_res.json()
+    assert len(history_data["items"]) >= 1
+    scan_id = history_data["items"][0]["id"]
 
-        assert detail_data["id"] == scan_id
+    detail_res = client.get(f"/api/v1/history/{scan_id}")
+    assert detail_res.status_code == 200
+    detail_data = detail_res.json()
 
-        # Verify against the actual stored database record
-        session_factory = get_session_factory()
-        async with session_factory() as session:
-            db_scan = await session.get(ScanHistory, scan_id)
-            assert db_scan is not None
+    assert detail_data["id"] == scan_id
 
-            report = db_scan.full_report or {}
+    # Verify against the actual stored database record
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        db_scan = await session.get(ScanHistory, scan_id)
+        assert db_scan is not None
 
-            assert detail_data.get("confidence") == report.get("confidence", 0.0)
-            assert detail_data.get("factors") == report.get("factors", [])
-            assert detail_data.get("recommendations") == report.get("recommendations", [])
+        report = db_scan.full_report or {}
 
-            expected_decision = report.get("decision", {
-                "action": db_scan.verdict,
-                "severity": db_scan.severity,
-                "ui": {"color": "slate"}
-            })
-            assert detail_data.get("decision") == expected_decision
-            assert detail_data.get("threat_intelligence") == report.get("threat_intelligence")
+        assert detail_data.get("confidence") == report.get("confidence", 0.0)
+        assert detail_data.get("factors") == report.get("factors", [])
+        assert detail_data.get("recommendations") == report.get("recommendations", [])
+
+        expected_decision = report.get("decision", {
+            "action": db_scan.verdict,
+            "severity": db_scan.severity,
+            "ui": {"color": "slate"}
+        })
+        assert detail_data.get("decision") == expected_decision
+        assert detail_data.get("threat_intelligence") == report.get("threat_intelligence")
+        assert db_scan.final_privacy_score is not None
+        assert db_scan.final_privacy_score == db_scan.final_security_score
 
 def test_get_scan_detail_not_found(setup_database):
     res = client.get("/api/v1/history/non_existent_id")
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_persist_scan_privacy_score(setup_database: object) -> None:
+    from src.core.database import get_session_factory
+    from src.models.scan import ScanHistory
+
+    with TestClient(app) as test_client:
+        res = test_client.post("/api/v1/analyze", json=SAMPLE_PAYLOAD)
+        assert res.status_code == 200
+        data = res.json()
+        analysis_id = data["analysis_id"]
+
+        session_factory = get_session_factory()
+        async with session_factory() as session:
+            db_scan = await session.get(ScanHistory, analysis_id)
+            assert db_scan is not None
+            assert db_scan.final_privacy_score == data["score"]
+
+
+@pytest.mark.asyncio
+async def test_persist_scan_privacy_penalty(setup_database: object) -> None:
+    from src.core.database import get_session_factory
+    from src.models.scan import ScanHistory
+
+    payload = {
+        **SAMPLE_PAYLOAD,
+        "url": "https://privacy-persist-test.com",
+        "hostname": "privacy-persist-test.com",
+        "privacy_policy_text": "We share your data with advertisers",
+        "third_party_cookie_count": 15,
+    }
+    with TestClient(app) as test_client:
+        res = test_client.post("/api/v1/analyze", json=payload)
+        assert res.status_code == 200
+        data = res.json()
+        analysis_id = data["analysis_id"]
+
+        session_factory = get_session_factory()
+        async with session_factory() as session:
+            db_scan = await session.get(ScanHistory, analysis_id)
+            assert db_scan is not None
+            assert db_scan.final_privacy_score == data["score"]
+            assert int(db_scan.final_privacy_score) <= 80

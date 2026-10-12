@@ -151,8 +151,11 @@ export async function fetchScanHistory(limit = 20, offset = 0, domain?: string):
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
-      if (data.items && data.items.length > 0) {
-        return { items: data.items, total: data.total };
+      if (data && Array.isArray(data.items)) {
+        return {
+          items: data.items,
+          total: typeof data.total === 'number' ? data.total : data.items.length,
+        };
       }
     }
   } catch {

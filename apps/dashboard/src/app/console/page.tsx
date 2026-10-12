@@ -12,7 +12,6 @@ import AnalyticsView from '../../components/AnalyticsView';
 import SettingsView from '../../components/SettingsView';
 import {
   INITIAL_METRICS,
-  SAMPLE_SCANS,
   checkBackendHealth,
   fetchScanHistory,
   performLiveScan,
@@ -28,7 +27,7 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const analyticsFetchIdRef = React.useRef(0);
-  const [scans, setScans] = useState<ScanHistoryItem[]>(SAMPLE_SCANS);
+  const [scans, setScans] = useState<ScanHistoryItem[]>([]);
   const [selectedScan, setSelectedScan] = useState<DetailedScanResult | null>(null);
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
 
@@ -44,7 +43,7 @@ export default function DashboardPage() {
           fetchScanHistory(20),
           fetchAnalytics(30),
         ]);
-        if (historyData.items && historyData.items.length > 0) {
+        if (historyData && Array.isArray(historyData.items)) {
           setScans(historyData.items);
         }
         if (fetchId === analyticsFetchIdRef.current) {
@@ -55,7 +54,7 @@ export default function DashboardPage() {
         setAnalytics(null);
         setAnalyticsLoading(false);
         const historyData = await fetchScanHistory(20);
-        if (historyData.items && historyData.items.length > 0) {
+        if (historyData && Array.isArray(historyData.items)) {
           setScans(historyData.items);
         }
       }
