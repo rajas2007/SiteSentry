@@ -354,4 +354,54 @@ describe('Background Service Worker Persistence', () => {
       });
     });
   });
+
+  it('sets amber badge and ? text when threat_category is inconclusive', async () => {
+    const inconclusiveResponse: PageAnalysisResponse = {
+      analysis_id: 'inconclusive-123',
+      score: 100,
+      severity: 'medium',
+      confidence: 0.5,
+      threat_category: 'inconclusive',
+      recommendations: ['Threat intelligence checks could not be completed; exercise caution on this site.'],
+      factors: ['Threat intelligence data is incomplete or unavailable'],
+      decision: {
+        action: 'warn',
+        severity: 'medium',
+        ui: { color: 'amber' },
+      },
+    };
+
+    vi.mocked(submitAnalysis).mockResolvedValueOnce(inconclusiveResponse);
+    const sendResponse = vi.fn();
+
+    messageListener(
+      {
+        type: 'ANALYZE_PAGE',
+        payload: {
+          url: 'https://inconclusive.example.com',
+          title: 'Inconclusive',
+          hostname: 'inconclusive.example.com',
+          features: {} as any,
+        },
+      },
+      { tab: { id: 808 } },
+      sendResponse
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({
+        status: 'SUCCESS',
+        data: inconclusiveResponse,
+      });
+    });
+
+    expect(chromeMock.action.setBadgeBackgroundColor).toHaveBeenCalledWith({
+      tabId: 808,
+      color: '#d97706',
+    });
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({
+      tabId: 808,
+      text: '?',
+    });
+  });
 });

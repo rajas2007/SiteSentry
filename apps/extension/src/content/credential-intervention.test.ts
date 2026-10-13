@@ -25,6 +25,20 @@ describe('Credential Intervention', () => {
     expect(pwd.disabled).toBe(false);
   });
 
+  it('should not disable password fields for inconclusive results', () => {
+    const mockResponse = {
+      status: 'SUCCESS',
+      threat_category: 'inconclusive',
+      severity: 'medium',
+    } as any;
+
+    const restore = applyCredentialIntervention(mockResponse);
+    expect(restore).toBeNull();
+
+    const pwd = document.querySelector('input[type="password"]') as HTMLInputElement;
+    expect(pwd.disabled).toBe(false);
+  });
+
   it('should disable password fields and return a restore function for credential theft', () => {
     const mockResponse = {
       status: 'SUCCESS',

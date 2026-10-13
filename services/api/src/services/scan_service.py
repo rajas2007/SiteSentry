@@ -101,15 +101,18 @@ class ScanService:
             score=fusion_result["score"],
             severity=decision_result["severity"],
             confidence=fusion_result["confidence"],
-            threat_category=fusion_result["threat_category"],
+            threat_category=decision_result.get(
+                "threat_category", fusion_result["threat_category"]
+            ),
             recommendations=decision_result["recommendations"],
             factors=fusion_result["factors"],
             decision=decision_result["decision"],
             threat_intelligence=ti_response,
         )
 
-        # 4. Store in Redis cache
-        await self.cache.set_analysis(url_str, response.model_dump(mode="json"))
+        # 4. Store in Redis cache only if data completeness is complete
+        if fusion_result.get("data_completeness", True):
+            await self.cache.set_analysis(url_str, response.model_dump(mode="json"))
 
         # 5. Asynchronously persist to PostgreSQL if DB session is provided
         if db is not None:

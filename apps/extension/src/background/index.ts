@@ -46,7 +46,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
         else if (data.decision.severity === 'low') color = '#10b981'; // emerald
 
         chrome.action.setBadgeBackgroundColor({ tabId, color });
-        chrome.action.setBadgeText({ tabId, text: data.score.toString() });
+        const badgeText = data.threat_category === 'inconclusive' ? '?' : data.score.toString();
+        chrome.action.setBadgeText({ tabId, text: badgeText });
       })
       .catch((error) => {
         if (tabGenerations.get(tabId) !== requestGen) {

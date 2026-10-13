@@ -1,5 +1,21 @@
 from src.schemas.analysis import PageAnalysisRequest
 
+# Standard authentication terms that legitimately appear on normal login/account pages
+ROUTINE_AUTH_KEYWORDS = {"login", "sign in", "password", "account"}
+
+# Coercive, urgency, and threat indicators frequently used in phishing attacks
+COERCIVE_THREAT_KEYWORDS = {
+    "urgent",
+    "suspended",
+    "locked",
+    "unauthorized",
+    "compromised",
+    "deactivation",
+    "terminate",
+    "action required",
+    "immediate",
+}
+
 
 class SecurityEngine:
     """Security engine evaluating structural page features and external threat intelligence."""
@@ -8,7 +24,7 @@ class SecurityEngine:
         signals = []
         f = request.features
 
-        # 2. Structural & Positive Heuristic Indicators
+        # 1. Structural & Encryption Indicators
         if f.hasHttps:
             signals.append(
                 {
@@ -34,7 +50,18 @@ class SecurityEngine:
                 }
             )
 
-        # 3. Payload & DOM Indicators
+        # 2. Payload & Authentication Heuristics
+        # Routine terms (e.g. 'login', 'password') are expected on authentication pages
+        # and must not by themselves make an otherwise legitimate page suspicious.
+        non_routine_keywords = [
+            k for k in f.suspiciousKeywords
+            if k.strip().lower() not in ROUTINE_AUTH_KEYWORDS
+        ]
+        coercive_keywords = [
+            k for k in non_routine_keywords
+            if k.strip().lower() in COERCIVE_THREAT_KEYWORDS
+        ]
+
         if f.hasPasswordField or f.hasLoginForm:
             if not f.hasHttps:
                 signals.append(
@@ -44,11 +71,28 @@ class SecurityEngine:
                     }
                 )
 
-            if len(f.suspiciousKeywords) > 0:
+            # Evaluate coercive language or suspicious multi-factor combinations
+            if len(coercive_keywords) > 0:
                 signals.append(
                     {
                         "id": "suspicious_login",
-                        "description": f"Login form found with suspicious keywords: {', '.join(f.suspiciousKeywords[:3])}",
+                        "description": f"Login form found with coercive urgency or threat keywords: {', '.join(coercive_keywords[:3])}",
+                    }
+                )
+            elif len(non_routine_keywords) >= 2 and (
+                f.subdomainCount > 2 or f.hostnameLength > 30
+            ):
+                signals.append(
+                    {
+                        "id": "suspicious_login",
+                        "description": f"Login form combined with suspicious domain structure and keywords: {', '.join(non_routine_keywords[:3])}",
+                    }
+                )
+            elif len(non_routine_keywords) >= 3:
+                signals.append(
+                    {
+                        "id": "suspicious_login",
+                        "description": f"Login form accompanied by multiple suspicious keywords: {', '.join(non_routine_keywords[:3])}",
                     }
                 )
             else:
@@ -56,11 +100,16 @@ class SecurityEngine:
                     {"id": "has_login", "description": "Contains a login form"}
                 )
         else:
-            if len(f.suspiciousKeywords) > 2:
+            if len(coercive_keywords) > 0 or len(non_routine_keywords) > 2:
+                matched = (
+                    coercive_keywords
+                    if len(coercive_keywords) > 0
+                    else non_routine_keywords
+                )
                 signals.append(
                     {
                         "id": "suspicious_keywords",
-                        "description": f"Multiple suspicious keywords detected without a login form: {', '.join(f.suspiciousKeywords[:3])}",
+                        "description": f"Multiple suspicious keywords detected without a login form: {', '.join(matched[:3])}",
                     }
                 )
 

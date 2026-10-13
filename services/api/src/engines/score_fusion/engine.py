@@ -19,28 +19,38 @@ class ScoreFusionEngine:
         score = 100
         factors = []
         confidence = 0.9
+        data_completeness = True
 
         threat_category = "safe"
         has_login = False
+        has_confirmed_threat = False
 
         # 1. Fuse Threat Intelligence
         if threat_intel:
+            confidence = threat_intel.confidence
+            data_completeness = threat_intel.data_completeness
+
             if threat_intel.blacklists_triggered:
                 score = min(score, 10)
                 confidence = max(confidence, threat_intel.confidence)
                 blacklist_names = ", ".join(threat_intel.blacklists_triggered)
                 factors.append(f"Domain is actively blacklisted by: {blacklist_names}")
+                has_confirmed_threat = True
             elif threat_intel.total_vendor_flags > 0:
                 penalty = min(50, threat_intel.total_vendor_flags * 10)
                 score -= penalty
                 factors.append(
                     f"Flagged by {threat_intel.total_vendor_flags} security vendors on VirusTotal"
                 )
+                has_confirmed_threat = True
 
             if threat_intel.threat_categories:
                 threat_category = (
                     threat_intel.threat_categories[0].lower().replace(" ", "_")
                 )
+
+            if not data_completeness:
+                factors.append("Threat intelligence data is incomplete or unavailable")
 
         # 2. Fuse Security Signals
         for sig in security_signals:
@@ -103,4 +113,6 @@ class ScoreFusionEngine:
             "factors": factors,
             "confidence": confidence,
             "threat_category": threat_category,
+            "data_completeness": data_completeness,
+            "has_confirmed_threat": has_confirmed_threat,
         }

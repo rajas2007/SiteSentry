@@ -163,7 +163,16 @@ class ThreatIntelligenceEngine:
                 ),
             ]
 
-        confidence = 0.95 if blacklists_triggered else 0.90
+        if blacklists_triggered:
+            confidence = 0.95
+        elif total_vendor_flags > 0:
+            confidence = 0.85 if not data_completeness else 0.90
+        elif data_completeness:
+            confidence = 0.90
+        elif any(s.status == "clean" for s in sources):
+            confidence = 0.70
+        else:
+            confidence = 0.50
 
         report = UnifiedThreatObject(
             domain=domain,

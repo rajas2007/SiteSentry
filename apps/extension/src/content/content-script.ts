@@ -1,9 +1,11 @@
 import { extractPageFeatures, extractPrivacyPolicyText, getThirdPartyCookieCount } from './dom-extractor';
 import { PageAnalysisRequest, ExtensionMessage, ExtensionMessageResponse } from '@site-sentry/shared-types';
 import { WarningOverlay } from './warning-overlay';
+import { InconclusiveBanner } from './inconclusive-banner';
 import { applyCredentialIntervention } from './credential-intervention';
 
 const overlay = new WarningOverlay();
+const banner = new InconclusiveBanner();
 let restoreCredFn: (() => void) | null = null;
 
 async function analyzeCurrentPage() {
@@ -25,15 +27,22 @@ async function analyzeCurrentPage() {
     const response = await chrome.runtime.sendMessage(message) as ExtensionMessageResponse;
     console.log('[Site Sentry] Analysis response:', response);
     
-    if (response.status === 'SUCCESS' && response.data.severity === 'high') {
-      overlay.show(response.data, () => {
-        // Restore password inputs on continue
-        if (restoreCredFn) restoreCredFn();
-      });
-    }
-    
-    // Credential Theft Intervention
     if (response.status === 'SUCCESS') {
+      if (response.data.severity === 'high') {
+        banner.dismiss();
+        overlay.show(response.data, () => {
+          // Restore password inputs on continue
+          if (restoreCredFn) restoreCredFn();
+        });
+      } else if (response.data.threat_category === 'inconclusive') {
+        overlay.dismiss();
+        banner.show();
+      } else {
+        overlay.dismiss();
+        banner.dismiss();
+      }
+
+      // Credential Theft Intervention
       restoreCredFn = applyCredentialIntervention(response.data);
     }
   } catch (error) {
@@ -54,6 +63,7 @@ setInterval(() => {
   if (window.location.href !== currentUrl) {
     currentUrl = window.location.href;
     overlay.dismiss();
+    banner.dismiss();
     analyzeCurrentPage();
   }
 }, 1000);

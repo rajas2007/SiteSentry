@@ -525,3 +525,155 @@ async def test_vt_404_incomplete_result_not_cached_in_redis():
     assert report.data_completeness is False
     # Must NOT be stored in cache
     assert "unknown-domain.com" not in cache.store
+
+
+# ---------------------------------------------------------------------------
+# 10. Phase 1 Required Threat Intelligence Scenarios
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_scenario_both_providers_unavailable():
+    # Both providers unconfigured/unavailable -> confidence 0.50, data_completeness False
+    gsb = FailingGSBClient(ThreatIntelUnavailableError("API key not configured"))
+    vt = FailingVTClient(ThreatIntelUnavailableError("API key not configured"))
+    engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
+
+    report = await engine.lookup("https://unavail-site.com", "unavail-site.com")
+
+    assert report.data_completeness is False
+    assert report.confidence == 0.50
+    assert report.blacklists_triggered == []
+    assert len(report.sources) == 2
+    assert all(s.status == "unavailable" for s in report.sources)
+
+
+@pytest.mark.asyncio
+async def test_scenario_one_unavailable_one_clean():
+    # GSB clean, VT unavailable -> confidence 0.70, data_completeness False
+    gsb = MockGSBClient(findings=[])
+    vt = FailingVTClient(ThreatIntelUnavailableError("API key not configured"))
+    engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
+
+    report = await engine.lookup("https://halfclean-site.com", "halfclean-site.com")
+
+    assert report.data_completeness is False
+    assert report.confidence == 0.70
+    assert report.blacklists_triggered == []
+    gsb_src = next(s for s in report.sources if s.provider == "Google Safe Browsing")
+    vt_src = next(s for s in report.sources if s.provider == "VirusTotal")
+    assert gsb_src.status == "clean"
+    assert vt_src.status == "unavailable"
+
+
+@pytest.mark.asyncio
+async def test_scenario_one_unavailable_one_threat():
+    # GSB detected threat, VT unavailable -> confidence 0.95, threat preserved
+    gsb = MockGSBClient(findings=["SOCIAL_ENGINEERING"])
+    vt = FailingVTClient(ThreatIntelUnavailableError("Connection timeout"))
+    engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
+
+    report = await engine.lookup("https://threat-site.com", "threat-site.com")
+
+    assert report.data_completeness is False
+    assert report.confidence == 0.95
+    assert "Google Safe Browsing" in report.blacklists_triggered
+    assert "Phishing" in report.threat_categories
+
+
+@pytest.mark.asyncio
+async def test_scenario_both_complete_clean():
+    # Both providers complete and clean -> confidence 0.90, data_completeness True
+    gsb = MockGSBClient(findings=[])
+    vt = MockVTClient(
+        stats={"malicious": 0, "suspicious": 0, "total_flags": 0, "categories": []}
+    )
+    engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
+
+    report = await engine.lookup("https://clean-site.com", "clean-site.com")
+
+    assert report.data_completeness is True
+    assert report.confidence == 0.90
+    assert report.blacklists_triggered == []
+    assert all(s.status == "clean" for s in report.sources)
+
+
+@pytest.mark.asyncio
+async def test_scenario_gsb_phishing_detection():
+    # GSB detects Social Engineering (Phishing)
+    gsb = MockGSBClient(findings=["SOCIAL_ENGINEERING"])
+    vt = MockVTClient(
+        stats={"malicious": 0, "suspicious": 0, "total_flags": 0, "categories": []}
+    )
+    engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
+
+    report = await engine.lookup("https://phish-test.com", "phish-test.com")
+
+    assert "Google Safe Browsing" in report.blacklists_triggered
+    assert "Phishing" in report.threat_categories
+    assert report.confidence == 0.95
+
+
+@pytest.mark.asyncio
+async def test_scenario_vt_detection():
+    # VT detects malicious domain (>=3 malicious vendors)
+    gsb = MockGSBClient(findings=[])
+    vt = MockVTClient(
+        stats={
+            "malicious": 4,
+            "suspicious": 1,
+            "total_flags": 5,
+            "categories": ["Malicious Domain"],
+        }
+    )
+    engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
+
+    report = await engine.lookup("https://vt-flagged.com", "vt-flagged.com")
+
+    assert "VirusTotal" in report.blacklists_triggered
+    assert "Malicious Domain" in report.threat_categories
+    assert report.confidence == 0.95
+
+
+@pytest.mark.asyncio
+async def test_scenario_incomplete_scan_not_represented_as_safe_in_scan_service():
+    # When ScanService processes a site with incomplete threat intel, verdict must be warn/medium/inconclusive
+    gsb = FailingGSBClient(ThreatIntelUnavailableError("API key not configured"))
+    vt = FailingVTClient(ThreatIntelUnavailableError("API key not configured"))
+    ti_engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
+
+    scan_service = ScanService(
+        security_engine=SecurityEngine(),
+        decision_engine=DecisionEngine(),
+        threat_intel_engine=ti_engine,
+    )
+
+    request = PageAnalysisRequest(
+        url="https://clean-looking-site.com",  # type: ignore[arg-type]
+        title="Welcome",
+        hostname="clean-looking-site.com",
+        features=PageFeatures(
+            hasPasswordField=False,
+            hasLoginForm=False,
+            formCount=0,
+            externalLinkCount=2,
+            iframeCount=0,
+            scriptCount=2,
+            imageCount=1,
+            suspiciousKeywords=[],
+            pageTextLength=500,
+            hasHttps=True,
+            hostnameLength=22,
+            subdomainCount=0,
+        ),
+    )
+
+    response = await scan_service.analyze_page(request)
+
+    # Must NOT be marked safe/allow
+    assert response.score == 100
+    assert response.severity == "medium"
+    assert response.decision.action == "warn"
+    assert response.decision.ui.color == "amber"
+    assert response.threat_category == "inconclusive"
+    assert any("Threat intelligence checks could not be completed" in r for r in response.recommendations)

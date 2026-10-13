@@ -34,11 +34,50 @@ class InMemoryCache:
 @pytest.fixture(scope="module", autouse=True)
 def setup_database():
     import asyncio
+    from unittest.mock import AsyncMock
+
+    from src.api.analyze import scan_service
+    from src.engines.threat_intelligence.schemas import (
+        ProviderStatus,
+        UnifiedThreatObject,
+    )
 
     # Ensure tables are created in SQLite
     asyncio.run(init_db())
     reset_db()
+
+    # Wire a clean, complete mock threat intelligence engine by default for API integration tests
+    original_ti = scan_service.threat_intel_engine
+    mock_ti = AsyncMock()
+
+    async def mock_lookup(url: str, domain: str) -> UnifiedThreatObject:
+        return UnifiedThreatObject(
+            domain=domain,
+            data_completeness=True,
+            confidence=0.90,
+            blacklists_triggered=[],
+            total_vendor_flags=0,
+            threat_categories=[],
+            sources=[
+                ProviderStatus(
+                    provider="Google Safe Browsing",
+                    status="clean",
+                    summary="No threats found",
+                ),
+                ProviderStatus(
+                    provider="VirusTotal",
+                    status="clean",
+                    summary="No security vendors flagged this domain",
+                ),
+            ],
+        )
+
+    mock_ti.lookup = mock_lookup
+    scan_service.threat_intel_engine = mock_ti
+
     yield
+
+    scan_service.threat_intel_engine = original_ti
     reset_db()
 
 
@@ -88,6 +127,71 @@ def test_analyze_endpoint_invalid_schema():
         payload = {"url": "not-a-url"}
         response = test_client.post("/api/v1/analyze", json=payload)
         assert response.status_code == 422
+
+
+def test_analyze_endpoint_incomplete_threat_intel():
+    from src.api.analyze import scan_service
+    from src.engines.threat_intelligence.engine import ThreatIntelligenceEngine
+    from src.integrations.safe_browsing.client import GoogleSafeBrowsingClient
+    from src.integrations.virustotal.client import VirusTotalClient
+
+    # Wire an engine with missing API keys (incomplete data)
+    unconfigured_engine = ThreatIntelligenceEngine(
+        gsb_client=GoogleSafeBrowsingClient(api_key=None),
+        vt_client=VirusTotalClient(api_key=None),
+    )
+    saved_ti = scan_service.threat_intel_engine
+    scan_service.threat_intel_engine = unconfigured_engine
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.post("/api/v1/analyze", json=SAMPLE_PAYLOAD)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["score"] == 100
+            assert data["severity"] == "medium"
+            assert data["decision"]["action"] == "warn"
+            assert data["decision"]["ui"]["color"] == "amber"
+            assert data["threat_category"] == "inconclusive"
+            assert any("Threat intelligence" in f for f in data["factors"])
+            assert any(
+                "Threat intelligence checks could not be completed" in r
+                for r in data["recommendations"]
+            )
+    finally:
+        scan_service.threat_intel_engine = saved_ti
+
+
+def test_analyze_incomplete_threat_intel_not_cached():
+    from src.api.analyze import scan_service
+    from src.engines.threat_intelligence.engine import ThreatIntelligenceEngine
+    from src.integrations.safe_browsing.client import GoogleSafeBrowsingClient
+    from src.integrations.virustotal.client import VirusTotalClient
+
+    original_cache = scan_service.cache
+    test_cache = InMemoryCache()
+    scan_service.cache = test_cache  # type: ignore
+
+    unconfigured_engine = ThreatIntelligenceEngine(
+        gsb_client=GoogleSafeBrowsingClient(api_key=None),
+        vt_client=VirusTotalClient(api_key=None),
+    )
+    saved_ti = scan_service.threat_intel_engine
+    scan_service.threat_intel_engine = unconfigured_engine
+
+    try:
+        with TestClient(app) as test_client:
+            payload = {
+                **SAMPLE_PAYLOAD,
+                "url": "https://incomplete-cache-test.com",
+                "hostname": "incomplete-cache-test.com",
+            }
+            res = test_client.post("/api/v1/analyze", json=payload)
+            assert res.status_code == 200
+            # Ensure the cache was NOT populated for an incomplete scan
+            assert len(test_cache.store) == 0
+    finally:
+        scan_service.threat_intel_engine = saved_ti
+        scan_service.cache = original_cache
 
 
 def test_analyze_caching():
