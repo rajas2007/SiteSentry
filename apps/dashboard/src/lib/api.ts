@@ -9,129 +9,6 @@ export const INITIAL_METRICS: DashboardMetrics = {
   privacyViolations: 0,
 };
 
-export const SAMPLE_SCANS: ScanHistoryItem[] = [
-  {
-    id: 'scan-001',
-    url: 'https://github.com/rajas2007/SiteSentry',
-    domain: 'github.com',
-    score: 98,
-    security_score: 99,
-    privacy_score: 95,
-    severity: 'low',
-    verdict: 'allow',
-    threat_category: 'safe',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-  },
-  {
-    id: 'scan-002',
-    url: 'http://login.paypal.verify-account.security-update.xyz/auth',
-    domain: 'verify-account.security-update.xyz',
-    score: 12,
-    security_score: 10,
-    privacy_score: 22,
-    severity: 'high',
-    verdict: 'block',
-    threat_category: 'credential_theft',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-  },
-  {
-    id: 'scan-003',
-    url: 'https://shopping-deals-unlimited.biz/checkout',
-    domain: 'shopping-deals-unlimited.biz',
-    score: 48,
-    security_score: 55,
-    privacy_score: 36,
-    severity: 'high',
-    verdict: 'block',
-    threat_category: 'privacy_abuse',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 85).toISOString(),
-  },
-  {
-    id: 'scan-004',
-    url: 'https://crypto-airdrop-rewards-free.net/connect-wallet',
-    domain: 'crypto-airdrop-rewards-free.net',
-    score: 25,
-    security_score: 20,
-    privacy_score: 30,
-    severity: 'high',
-    verdict: 'block',
-    threat_category: 'suspicious_content',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 150).toISOString(),
-  },
-  {
-    id: 'scan-005',
-    url: 'https://developer.mozilla.org/en-US/docs/Web/API',
-    domain: 'developer.mozilla.org',
-    score: 95,
-    security_score: 97,
-    privacy_score: 92,
-    severity: 'low',
-    verdict: 'allow',
-    threat_category: 'safe',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
-  },
-  {
-    id: 'scan-006',
-    url: 'http://my-blog-portal-test.info/read',
-    domain: 'my-blog-portal-test.info',
-    score: 68,
-    security_score: 70,
-    privacy_score: 65,
-    severity: 'medium',
-    verdict: 'warn',
-    threat_category: 'elevated_risk',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 380).toISOString(),
-  },
-  {
-    id: 'scan-007',
-    url: 'https://chat.openai.com',
-    domain: 'chat.openai.com',
-    score: 96,
-    security_score: 98,
-    privacy_score: 91,
-    severity: 'low',
-    verdict: 'allow',
-    threat_category: 'safe',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 520).toISOString(),
-  },
-  {
-    id: 'scan-008',
-    url: 'http://banking-secure-portal-auth.online/login',
-    domain: 'banking-secure-portal-auth.online',
-    score: 18,
-    security_score: 15,
-    privacy_score: 25,
-    severity: 'high',
-    verdict: 'block',
-    threat_category: 'credential_theft',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 720).toISOString(),
-  },
-  {
-    id: 'scan-009',
-    url: 'https://docs.stripe.com/api',
-    domain: 'docs.stripe.com',
-    score: 97,
-    security_score: 98,
-    privacy_score: 94,
-    severity: 'low',
-    verdict: 'allow',
-    threat_category: 'safe',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 940).toISOString(),
-  },
-  {
-    id: 'scan-010',
-    url: 'https://free-gift-card-generator.xyz/claim',
-    domain: 'free-gift-card-generator.xyz',
-    score: 22,
-    security_score: 18,
-    privacy_score: 28,
-    severity: 'high',
-    verdict: 'block',
-    threat_category: 'suspicious_content',
-    scanned_at: new Date(Date.now() - 1000 * 60 * 1100).toISOString(),
-  }
-];
-
 export async function checkBackendHealth(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE_URL}/health`, { signal: AbortSignal.timeout(2000) });
@@ -141,7 +18,11 @@ export async function checkBackendHealth(): Promise<boolean> {
   }
 }
 
-export async function fetchScanHistory(limit = 20, offset = 0, domain?: string): Promise<{ items: ScanHistoryItem[]; total: number }> {
+export async function fetchScanHistory(
+  limit = 20,
+  offset = 0,
+  domain?: string
+): Promise<{ items: ScanHistoryItem[]; total: number } | null> {
   try {
     const url = new URL(`${API_BASE_URL}/api/v1/history`);
     url.searchParams.set('limit', limit.toString());
@@ -149,27 +30,21 @@ export async function fetchScanHistory(limit = 20, offset = 0, domain?: string):
     if (domain) url.searchParams.set('domain', domain);
 
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(3000) });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && Array.isArray(data.items)) {
-        return {
-          items: data.items,
-          total: typeof data.total === 'number' ? data.total : data.items.length,
-        };
-      }
+    if (!res.ok) {
+      return null;
     }
-  } catch {
-    // Fallback to demo dataset
+    const data = await res.json();
+    if (data && Array.isArray(data.items)) {
+      return {
+        items: data.items,
+        total: typeof data.total === 'number' ? data.total : data.items.length,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.warn('Backend unavailable or network error when fetching scan history:', error);
+    return null;
   }
-
-  let filtered = SAMPLE_SCANS;
-  if (domain) {
-    filtered = filtered.filter(s => s.domain.toLowerCase().includes(domain.toLowerCase()) || s.url.toLowerCase().includes(domain.toLowerCase()));
-  }
-  return {
-    items: filtered.slice(offset, offset + limit),
-    total: filtered.length,
-  };
 }
 
 export async function performLiveScan(targetUrl: string): Promise<DetailedScanResult> {
@@ -215,122 +90,39 @@ export async function performLiveScan(targetUrl: string): Promise<DetailedScanRe
       signal: AbortSignal.timeout(4500),
     });
 
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        ...data,
-        domain: hostname,
-        url: targetUrl,
-        security_score: data.security_score ?? Math.round(data.score * 0.95),
-        privacy_score: data.privacy_score ?? Math.max(30, Math.round(data.score * 0.9)),
-        domain_authority: data.domain_authority ?? Math.min(99, Math.round(data.score * 0.98)),
-        features: payload.features,
-        scanned_at: new Date().toISOString(),
-      };
+    if (!res.ok) {
+      throw new Error(`Live scan failed: Backend returned HTTP status ${res.status}`);
     }
-  } catch {
-    // If backend is unreachable, compute realistic local heuristic scan
+
+    const data = await res.json();
+    if (!data || typeof data.score !== 'number' || !data.decision) {
+      throw new Error('Live scan failed: Invalid response structure from backend analysis service');
+    }
+
+    return {
+      analysis_id: data.analysis_id || `scan-${Date.now()}`,
+      url: data.url || targetUrl,
+      domain: hostname,
+      score: data.score,
+      security_score: data.security_score ?? Math.round(data.score * 0.95),
+      privacy_score: data.privacy_score ?? Math.max(30, Math.round(data.score * 0.9)),
+      domain_authority: data.domain_authority ?? Math.min(99, Math.round(data.score * 0.98)),
+      severity: data.severity || (data.score < 50 ? 'high' : data.score < 80 ? 'medium' : 'low'),
+      confidence: typeof data.confidence === 'number' ? data.confidence : 0.9,
+      threat_category: data.threat_category || 'safe',
+      recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
+      factors: Array.isArray(data.factors) ? data.factors : [],
+      decision: data.decision,
+      threat_intelligence: data.threat_intelligence,
+      features: payload.features,
+      scanned_at: data.scanned_at || new Date().toISOString(),
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Analysis service is currently unreachable. Please check backend connection.');
   }
-
-  const score = isSuspicious ? (isHttps ? 38 : 14) : isPrivacyAbuse ? 48 : 96;
-  const security_score = isSuspicious ? (isHttps ? 40 : 12) : 98;
-  const privacy_score = isPrivacyAbuse ? 34 : isSuspicious ? 45 : 94;
-  const domain_authority = isSuspicious ? 24 : isPrivacyAbuse ? 52 : 95;
-  const severity = score < 50 ? 'high' : score < 80 ? 'medium' : 'low';
-  const threat_category = score < 50
-    ? (targetUrl.includes('login') || targetUrl.includes('auth') || targetUrl.includes('verify') || targetUrl.includes('banking') ? 'credential_theft' : isPrivacyAbuse ? 'privacy_abuse' : 'suspicious_content')
-    : score < 80 ? 'elevated_risk' : 'safe';
-
-  return {
-    analysis_id: `scan-${Date.now()}`,
-    url: targetUrl,
-    domain: hostname,
-    score,
-    security_score,
-    privacy_score,
-    domain_authority,
-    severity,
-    confidence: 0.96,
-    threat_category,
-    recommendations: score < 50
-      ? [
-          'Leave this website immediately to prevent credential theft or malware infection.',
-          'Do not submit passwords, payment info, or personal credentials.',
-          'Domain has been recorded and flagged across internal SOC audit logs.'
-        ]
-      : score < 80
-      ? [
-          'Exercise caution before providing personal or financial details.',
-          'Inspect TLS certificate authority and review tracking permissions.'
-        ]
-      : [
-          'Website passed all multi-vendor security validations.',
-          'Connection is strongly encrypted and domain reputation is verified safe.'
-        ],
-    factors: isSuspicious
-      ? [
-          !isHttps ? '✕ Connection is unencrypted HTTP (credentials vulnerable to interception)' : '✕ External threat intelligence feeds flagged this domain',
-          '✕ Login form detected on domain with newly registered or deceptive characteristics',
-          '✕ Lexical structure matches known credential harvesting campaign patterns',
-          '⚠ Excessive external redirect chains identified during DNS lookup',
-        ]
-      : isPrivacyAbuse
-      ? [
-          '⚠ High density of third-party tracking beacons and ad pixels detected',
-          '✕ Privacy policy explicitly allows selling user profile data to data brokers',
-          '⚠ Persistent cookie storage configured without explicit consent banner',
-        ]
-      : [
-          '✓ Strong TLS 1.3 encryption with valid CA certificate',
-          '✓ Domain age and DNS reputation verified across 80+ threat intelligence sources',
-          '✓ Zero suspicious credential theft forms or deceptive DOM structures detected',
-          '✓ Standard privacy practices with low third-party tracker footprint',
-        ],
-    decision: {
-      action: score < 50 ? 'block' : score < 80 ? 'warn' : 'allow',
-      severity,
-      ui: { color: score < 50 ? 'rose' : score < 80 ? 'amber' : 'emerald' },
-    },
-    threat_intelligence: {
-      sources: [
-        {
-          provider: 'Google Safe Browsing v4',
-          status: isSuspicious ? 'detected' : 'clean',
-          categories: isSuspicious ? ['Social Engineering (Phishing)'] : [],
-          summary: isSuspicious ? 'Deceptive site list match' : 'No threats detected',
-        },
-        {
-          provider: 'VirusTotal Multi-Vendor',
-          status: isSuspicious ? 'detected' : 'clean',
-          categories: isSuspicious ? ['Phishing', 'Malicious'] : [],
-          summary: isSuspicious ? 'Flagged by 9 security vendors' : 'Clean on all 84 engines',
-        },
-        {
-          provider: 'PhishTank Community Feed',
-          status: isSuspicious ? 'detected' : 'clean',
-          categories: isSuspicious ? ['Verified Phish'] : [],
-          summary: isSuspicious ? 'Community verified active phishing site' : 'No match in malicious registry',
-        },
-        {
-          provider: 'SiteSentry ML Structural Engine',
-          status: score < 50 ? 'detected' : 'clean',
-          categories: score < 50 ? [threat_category.replace('_', ' ')] : [],
-          summary: score < 50 ? 'Structural anomaly score exceeded threshold' : 'Passed heuristic inspection',
-        }
-      ],
-    },
-    privacy_assessment: {
-      status: isPrivacyAbuse ? 'High Risk' : 'Acceptable',
-      findings: isPrivacyAbuse
-        ? [
-            { category: 'Data Sharing', severity: 'high', feature_trigger: 'Third-party advertising monetization', internal_code: 'PRV-01' },
-            { category: 'Tracking Cookies', severity: 'medium', feature_trigger: '14 third-party cookie beacons', internal_code: 'PRV-04' },
-          ]
-        : [],
-    },
-    features: payload.features,
-    scanned_at: new Date().toISOString(),
-  };
 }
 
 export async function fetchScanDetail(analysis_id: string): Promise<DetailedScanResult | null> {

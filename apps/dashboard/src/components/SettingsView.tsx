@@ -2,9 +2,13 @@
 
 import React, { useState } from 'react';
 import { Sliders, Key, Download, Check } from 'lucide-react';
-import { SAMPLE_SCANS } from '../lib/api';
+import { ScanHistoryItem } from '../lib/types';
 
-export default function SettingsView() {
+interface SettingsViewProps {
+  scans?: ScanHistoryItem[];
+}
+
+export default function SettingsView({ scans = [] }: SettingsViewProps) {
   const [strictMode, setStrictMode] = useState(false);
   const [blockTrackers, setBlockTrackers] = useState(true);
   const [highRiskThreshold, setHighRiskThreshold] = useState(50);
@@ -18,7 +22,7 @@ export default function SettingsView() {
   };
 
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(SAMPLE_SCANS, null, 2));
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(scans, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
     downloadAnchor.setAttribute('download', `sitesentry-audit-ledger-${Date.now()}.json`);
@@ -118,9 +122,11 @@ export default function SettingsView() {
           <button
             type="button"
             onClick={handleExportJSON}
-            className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-secondary/30 px-4 py-2 text-sm font-medium text-heading transition-colors hover:bg-secondary/60"
+            disabled={scans.length === 0}
+            title={scans.length === 0 ? "No scan records currently loaded to export" : "Export current scan records to JSON"}
+            className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-secondary/30 px-4 py-2 text-sm font-medium text-heading transition-colors hover:bg-secondary/60 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download className="h-4 w-4" /> Export Scan Ledger (JSON)
+            <Download className="h-4 w-4" /> Export Scan Ledger ({scans.length} records)
           </button>
 
           <button

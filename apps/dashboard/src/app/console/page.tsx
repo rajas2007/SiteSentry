@@ -11,7 +11,6 @@ import ScanDetailModal from '../../components/ScanDetailModal';
 import AnalyticsView from '../../components/AnalyticsView';
 import SettingsView from '../../components/SettingsView';
 import {
-  INITIAL_METRICS,
   checkBackendHealth,
   fetchScanHistory,
   performLiveScan,
@@ -19,7 +18,7 @@ import {
   fetchAnalytics
 } from '../../lib/api';
 import { ScanHistoryItem, DetailedScanResult, DashboardMetrics, AnalyticsOverview } from '../../lib/types';
-import { ShieldCheck, Server, Database, Terminal } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'analytics' | 'settings'>('overview');
@@ -28,45 +27,68 @@ export default function DashboardPage() {
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const analyticsFetchIdRef = React.useRef(0);
   const [scans, setScans] = useState<ScanHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedScan, setSelectedScan] = useState<DetailedScanResult | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function init() {
-      const isOnline = await checkBackendHealth();
-      setIsBackendConnected(isOnline);
+  const loadDashboardData = React.useCallback(async () => {
+    setHistoryLoading(true);
+    setAnalyticsLoading(true);
+    setHistoryError(null);
 
-      if (isOnline) {
-        setAnalyticsLoading(true);
-        const fetchId = ++analyticsFetchIdRef.current;
-        const [historyData, analyticsData] = await Promise.all([
-          fetchScanHistory(20),
-          fetchAnalytics(30),
-        ]);
-        if (historyData && Array.isArray(historyData.items)) {
-          setScans(historyData.items);
-        }
-        if (fetchId === analyticsFetchIdRef.current) {
-          setAnalytics(analyticsData);
-          setAnalyticsLoading(false);
-        }
-      } else {
-        setAnalytics(null);
-        setAnalyticsLoading(false);
-        const historyData = await fetchScanHistory(20);
-        if (historyData && Array.isArray(historyData.items)) {
-          setScans(historyData.items);
-        }
-      }
+    const isOnline = await checkBackendHealth();
+    setIsBackendConnected(isOnline);
+
+    if (!isOnline) {
+      setScans([]);
+      setHistoryError('Backend service is offline. Please start the Site Sentry API server.');
+      setHistoryLoading(false);
+      setAnalytics(null);
+      setAnalyticsLoading(false);
+      return;
     }
-    init();
+
+    const fetchId = ++analyticsFetchIdRef.current;
+    const [historyData, analyticsData] = await Promise.all([
+      fetchScanHistory(20),
+      fetchAnalytics(30),
+    ]);
+
+    if (fetchId !== analyticsFetchIdRef.current) {
+      return;
+    }
+
+    if (historyData) {
+      setScans(historyData.items);
+      setHistoryError(null);
+    } else {
+      setScans([]);
+      setHistoryError('Scan history could not be retrieved from the backend.');
+    }
+    setHistoryLoading(false);
+
+    setAnalytics(analyticsData);
+    setAnalyticsLoading(false);
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const handleQuickScan = async (url: string) => {
     setActiveTab('overview');
-    const result = await performLiveScan(url);
-    handleScanComplete(result);
-    setSelectedScan(result);
+    setDetailError(null);
+    try {
+      const result = await performLiveScan(url);
+      handleScanComplete(result);
+      setSelectedScan(result);
+    } catch (error) {
+      console.error('Quick scan failed:', error);
+      const msg = error instanceof Error ? error.message : 'Quick scan request failed.';
+      setDetailError(`Quick scan failed for ${url}: ${msg}`);
+    }
   };
 
   const handleScanComplete = (result: DetailedScanResult) => {
@@ -116,46 +138,28 @@ export default function DashboardPage() {
   const fetchIdRef = React.useRef(0);
 
   const handleInspectScanItem = async (item: ScanHistoryItem) => {
-    if (isBackendConnected) {
-      const currentFetchId = ++fetchIdRef.current;
-      setLoadingScanId(item.id);
-
-      const detailed = await fetchScanDetail(item.id);
-
-      if (currentFetchId !== fetchIdRef.current) {
-        return; // Stale request
-      }
-
-      setLoadingScanId(null);
-
-      if (detailed) {
-        setSelectedScan(detailed);
-        return;
-      }
+    setDetailError(null);
+    if (!isBackendConnected) {
+      setDetailError(`Cannot inspect scan for ${item.domain}: Backend service is offline.`);
+      return;
     }
 
-    const isSafe = item.score >= 80;
-    const isMedium = item.score >= 50 && item.score < 80;
+    const currentFetchId = ++fetchIdRef.current;
+    setLoadingScanId(item.id);
 
-    const fallback: DetailedScanResult = {
-      analysis_id: item.id,
-      url: item.url,
-      domain: item.domain,
-      score: item.score,
-      severity: item.severity,
-      confidence: 0,
-      threat_category: item.threat_category,
-      recommendations: [],
-      factors: ['Full report unavailable. (Sample data or backend disconnected)'],
-      decision: {
-        action: item.verdict,
-        severity: item.severity,
-        ui: { color: isSafe ? 'emerald' : isMedium ? 'amber' : 'rose' },
-      },
-      scanned_at: item.scanned_at,
-    };
+    const detailed = await fetchScanDetail(item.id);
 
-    setSelectedScan(fallback);
+    if (currentFetchId !== fetchIdRef.current) {
+      return; // Stale request
+    }
+
+    setLoadingScanId(null);
+
+    if (detailed) {
+      setSelectedScan(detailed);
+    } else {
+      setDetailError(`Detailed scan report for ${item.domain} could not be retrieved from the backend.`);
+    }
   };
 
   return (
@@ -167,6 +171,25 @@ export default function DashboardPage() {
         isBackendConnected={isBackendConnected}
       >
         <div key={activeTab} className="page-transition">
+          {detailError && (
+            <div
+              role="alert"
+              className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-xs text-danger"
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{detailError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailError(null)}
+                className="text-muted-foreground hover:text-heading transition-colors"
+                aria-label="Dismiss error"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
@@ -196,6 +219,9 @@ export default function DashboardPage() {
                 title="Recent Live Scans (Latest 6)"
                 newlyAddedId={newlyAddedId}
                 loadingScanId={loadingScanId}
+                isLoading={historyLoading}
+                error={historyError}
+                onRetry={loadDashboardData}
               />
             </div>
           )}
@@ -209,6 +235,9 @@ export default function DashboardPage() {
               isFullHistory={true}
               newlyAddedId={newlyAddedId}
               loadingScanId={loadingScanId}
+              isLoading={historyLoading}
+              error={historyError}
+              onRetry={loadDashboardData}
             />
           )}
 
@@ -219,7 +248,7 @@ export default function DashboardPage() {
 
           {/* SETTINGS TAB */}
           {activeTab === 'settings' && (
-            <SettingsView />
+            <SettingsView scans={scans} />
           )}
 
         </div>

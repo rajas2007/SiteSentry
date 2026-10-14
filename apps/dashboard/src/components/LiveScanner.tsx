@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Sparkles, Loader2, Check, Server, Cpu, Layers, ExternalLink } from 'lucide-react';
+import { Sparkles, Loader2, Check, Server, Cpu, Layers, ExternalLink, AlertCircle, X } from 'lucide-react';
 import { DetailedScanResult } from '../lib/types';
 import { performLiveScan } from '../lib/api';
 import { ScoreRing } from './sentry/primitives';
@@ -23,6 +23,7 @@ export default function LiveScanner({ onScanComplete, onInspect }: LiveScannerPr
   const [targetUrl, setTargetUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<DetailedScanResult | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +39,7 @@ export default function LiveScanner({ onScanComplete, onInspect }: LiveScannerPr
     if (!urlToScan) return;
     setIsScanning(true);
     setIsComplete(false);
+    setScanError(null);
     setLastResult(null);
     setCurrentStep(0);
 
@@ -53,8 +55,12 @@ export default function LiveScanner({ onScanComplete, onInspect }: LiveScannerPr
       setIsComplete(true);
       onScanComplete(result);
     } catch (error) {
-      console.error("Live scan failed", error);
       clearInterval(stepInterval);
+      setLastResult(null);
+      setIsComplete(false);
+      const msg = error instanceof Error ? error.message : 'Live scan request failed. Please check backend connection.';
+      setScanError(msg);
+      console.error("Live scan failed:", error);
     } finally {
       setIsScanning(false);
     }
@@ -129,6 +135,30 @@ export default function LiveScanner({ onScanComplete, onInspect }: LiveScannerPr
           )}
         </button>
       </form>
+
+      {/* Error Banner */}
+      {scanError && !isScanning && (
+        <div
+          role="alert"
+          className="mb-5 flex items-start justify-between gap-3 rounded-lg border border-danger/40 bg-danger/10 p-4 text-xs"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0 text-danger mt-0.5" />
+            <div>
+              <p className="font-semibold text-danger">Analysis Failed</p>
+              <p className="mt-0.5 text-muted-foreground">{scanError}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setScanError(null)}
+            className="text-muted-foreground hover:text-heading transition-colors"
+            aria-label="Dismiss error"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Step Progress Bar */}
       {isScanning && (
