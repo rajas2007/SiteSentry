@@ -254,7 +254,10 @@ def test_decision_engine_incomplete_data_degrades_low_risk():
     assert res["decision"]["action"] == "warn"
     assert res["decision"]["ui"]["color"] == "amber"
     assert res["threat_category"] == "inconclusive"
-    assert any("Threat intelligence checks could not be completed" in r for r in res["recommendations"])
+    assert any(
+        "Threat intelligence checks could not be completed" in r
+        for r in res["recommendations"]
+    )
 
 
 def test_decision_engine_incomplete_data_preserves_confirmed_threats():
@@ -272,44 +275,56 @@ def test_decision_engine_incomplete_data_preserves_confirmed_threats():
 def test_decision_engine_virustotal_one_vendor_flag():
     # VT flags 1 vendor (score 90). Must NOT be 'allow' / 'low' despite score >= 80.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 90,
-        "threat_category": "malicious_domain",
-        "data_completeness": True,
-        "has_confirmed_threat": True,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 90,
+            "threat_category": "malicious_domain",
+            "data_completeness": True,
+            "has_confirmed_threat": True,
+        }
+    )
     assert res["severity"] == "medium"
     assert res["decision"]["action"] == "warn"
     assert res["decision"]["ui"]["color"] == "amber"
     assert res["threat_category"] == "malicious_domain"
-    assert any("Security vendors flagged potential threats" in r for r in res["recommendations"])
+    assert any(
+        "Security vendors flagged potential threats" in r
+        for r in res["recommendations"]
+    )
 
 
 def test_decision_engine_virustotal_two_vendor_flags():
     # VT flags 2 vendors (score 80). Must NOT be 'allow' / 'low'.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 80,
-        "threat_category": "malicious_domain",
-        "data_completeness": True,
-        "has_confirmed_threat": True,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 80,
+            "threat_category": "malicious_domain",
+            "data_completeness": True,
+            "has_confirmed_threat": True,
+        }
+    )
     assert res["severity"] == "medium"
     assert res["decision"]["action"] == "warn"
     assert res["decision"]["ui"]["color"] == "amber"
     assert res["threat_category"] == "malicious_domain"
-    assert any("Security vendors flagged potential threats" in r for r in res["recommendations"])
+    assert any(
+        "Security vendors flagged potential threats" in r
+        for r in res["recommendations"]
+    )
 
 
 def test_decision_engine_confirmed_phishing_result():
     # Confirmed phishing (score 10). Must evaluate to block / high / rose.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 10,
-        "threat_category": "phishing",
-        "data_completeness": True,
-        "has_confirmed_threat": True,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 10,
+            "threat_category": "phishing",
+            "data_completeness": True,
+            "has_confirmed_threat": True,
+        }
+    )
     assert res["severity"] == "high"
     assert res["decision"]["action"] == "block"
     assert res["decision"]["ui"]["color"] == "rose"
@@ -320,12 +335,14 @@ def test_decision_engine_confirmed_phishing_result():
 def test_decision_engine_confirmed_phishing_score_100():
     # Confirmed phishing with score 100 must NOT be downgraded to warn/medium or allow/low.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 100,
-        "threat_category": "phishing",
-        "data_completeness": True,
-        "has_confirmed_threat": True,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 100,
+            "threat_category": "phishing",
+            "data_completeness": True,
+            "has_confirmed_threat": True,
+        }
+    )
     assert res["severity"] == "high"
     assert res["decision"]["action"] == "block"
     assert res["decision"]["ui"]["color"] == "rose"
@@ -336,12 +353,14 @@ def test_decision_engine_confirmed_phishing_score_100():
 def test_decision_engine_confirmed_malware_score_90():
     # Confirmed malware with score 90 must evaluate to block / high / rose.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 90,
-        "threat_category": "malware",
-        "data_completeness": True,
-        "has_confirmed_threat": True,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 90,
+            "threat_category": "malware",
+            "data_completeness": True,
+            "has_confirmed_threat": True,
+        }
+    )
     assert res["severity"] == "high"
     assert res["decision"]["action"] == "block"
     assert res["decision"]["ui"]["color"] == "rose"
@@ -352,12 +371,14 @@ def test_decision_engine_confirmed_malware_score_90():
 def test_decision_engine_clean_complete_scan():
     # Clean complete scan (score 100, data complete, no threat). Must evaluate to allow / low / emerald.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 100,
-        "threat_category": "safe",
-        "data_completeness": True,
-        "has_confirmed_threat": False,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 100,
+            "threat_category": "safe",
+            "data_completeness": True,
+            "has_confirmed_threat": False,
+        }
+    )
     assert res["severity"] == "low"
     assert res["decision"]["action"] == "allow"
     assert res["decision"]["ui"]["color"] == "emerald"
@@ -368,32 +389,45 @@ def test_decision_engine_clean_complete_scan():
 def test_decision_engine_inconclusive_scan_without_confirmed_threats():
     # Inconclusive scan with no threats (score 100, data incomplete). Must evaluate to warn / medium / inconclusive.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 100,
-        "threat_category": "safe",
-        "data_completeness": False,
-        "has_confirmed_threat": False,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 100,
+            "threat_category": "safe",
+            "data_completeness": False,
+            "has_confirmed_threat": False,
+        }
+    )
     assert res["severity"] == "medium"
     assert res["decision"]["action"] == "warn"
     assert res["decision"]["ui"]["color"] == "amber"
     assert res["threat_category"] == "inconclusive"
-    assert any("Threat intelligence checks could not be completed" in r for r in res["recommendations"])
+    assert any(
+        "Threat intelligence checks could not be completed" in r
+        for r in res["recommendations"]
+    )
 
 
 def test_decision_engine_incomplete_scan_with_confirmed_threat_preserved():
     # Incomplete scan where VT flagged 1 vendor (score 90, incomplete data).
     # Confirmed threat must NOT be overwritten by 'inconclusive'.
     engine = DecisionEngine()
-    res = engine.generate_decision({
-        "score": 90,
-        "threat_category": "malicious_domain",
-        "data_completeness": False,
-        "has_confirmed_threat": True,
-    })
+    res = engine.generate_decision(
+        {
+            "score": 90,
+            "threat_category": "malicious_domain",
+            "data_completeness": False,
+            "has_confirmed_threat": True,
+        }
+    )
     assert res["severity"] == "medium"
     assert res["decision"]["action"] == "warn"
     assert res["decision"]["ui"]["color"] == "amber"
     assert res["threat_category"] == "malicious_domain"
-    assert any("Security vendors flagged potential threats" in r for r in res["recommendations"])
-    assert any("Threat intelligence checks could not be completed" in r for r in res["recommendations"])
+    assert any(
+        "Security vendors flagged potential threats" in r
+        for r in res["recommendations"]
+    )
+    assert any(
+        "Threat intelligence checks could not be completed" in r
+        for r in res["recommendations"]
+    )

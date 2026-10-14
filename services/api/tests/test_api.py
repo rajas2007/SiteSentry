@@ -278,6 +278,7 @@ def test_analyze_endpoint_privacy_fields():
         assert data["score"] <= 80
         assert "High Privacy Risk: Tracking" in data["factors"]
 
+
 @pytest.mark.asyncio
 async def test_get_scan_detail_success(setup_database):
     from src.core.database import get_session_factory
@@ -314,15 +315,21 @@ async def test_get_scan_detail_success(setup_database):
         assert detail_data.get("factors") == report.get("factors", [])
         assert detail_data.get("recommendations") == report.get("recommendations", [])
 
-        expected_decision = report.get("decision", {
-            "action": db_scan.verdict,
-            "severity": db_scan.severity,
-            "ui": {"color": "slate"}
-        })
+        expected_decision = report.get(
+            "decision",
+            {
+                "action": db_scan.verdict,
+                "severity": db_scan.severity,
+                "ui": {"color": "slate"},
+            },
+        )
         assert detail_data.get("decision") == expected_decision
-        assert detail_data.get("threat_intelligence") == report.get("threat_intelligence")
+        assert detail_data.get("threat_intelligence") == report.get(
+            "threat_intelligence"
+        )
         assert db_scan.final_privacy_score is not None
         assert db_scan.final_privacy_score == db_scan.final_security_score
+
 
 def test_get_scan_detail_not_found(setup_database):
     res = client.get("/api/v1/history/non_existent_id")

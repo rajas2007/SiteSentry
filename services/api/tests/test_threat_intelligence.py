@@ -241,9 +241,7 @@ async def test_threat_intelligence_engine_blacklisted():
 async def test_one_provider_failing_preserves_threat_detection_vt_detected():
     # GSB fails with 500 error, VT detects malware
     gsb = FailingGSBClient(
-        ThreatIntelUnavailableError(
-            "Service unavailable (HTTP 500)", status_code=500
-        )
+        ThreatIntelUnavailableError("Service unavailable (HTTP 500)", status_code=500)
     )
     vt = MockVTClient(
         stats={
@@ -278,9 +276,7 @@ async def test_one_provider_failing_preserves_threat_detection_gsb_detected():
     # VT fails with 401 Unauthorized, GSB detects Phishing
     gsb = MockGSBClient(findings=["SOCIAL_ENGINEERING"])
     vt = FailingVTClient(
-        ThreatIntelUnavailableError(
-            "Service unavailable (HTTP 401)", status_code=401
-        )
+        ThreatIntelUnavailableError("Service unavailable (HTTP 401)", status_code=401)
     )
     engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt)
 
@@ -676,4 +672,7 @@ async def test_scenario_incomplete_scan_not_represented_as_safe_in_scan_service(
     assert response.decision.action == "warn"
     assert response.decision.ui.color == "amber"
     assert response.threat_category == "inconclusive"
-    assert any("Threat intelligence checks could not be completed" in r for r in response.recommendations)
+    assert any(
+        "Threat intelligence checks could not be completed" in r
+        for r in response.recommendations
+    )

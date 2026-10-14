@@ -38,7 +38,6 @@ class ThreatIntelligenceEngine:
                     logger.info(f"OSINT cache hit for domain: {domain}")
                     return cached_obj
 
-
         # 2. Concurrently query external APIs on cache miss
         blacklists_triggered: list[str] = []
         threat_categories: list[str] = []

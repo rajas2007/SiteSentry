@@ -73,4 +73,6 @@ class GoogleSafeBrowsingClient:
             raise ThreatIntelUnavailableError("Google Safe Browsing timed out") from e
         except (httpx.HTTPError, OSError) as e:
             logger.warning(f"Google Safe Browsing lookup failed for {url}: {e}")
-            raise ThreatIntelUnavailableError(f"Google Safe Browsing lookup failed: {e}") from e
+            raise ThreatIntelUnavailableError(
+                f"Google Safe Browsing lookup failed: {e}"
+            ) from e

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { PageAnalysisResponse } from '@site-sentry/shared-types';
 import { applyCredentialIntervention } from './credential-intervention';
 
 describe('Credential Intervention', () => {
@@ -26,11 +27,16 @@ describe('Credential Intervention', () => {
   });
 
   it('should not disable password fields for inconclusive results', () => {
-    const mockResponse = {
-      status: 'SUCCESS',
-      threat_category: 'inconclusive',
+    const mockResponse: PageAnalysisResponse = {
+      analysis_id: '123',
+      score: 100,
       severity: 'medium',
-    } as any;
+      confidence: 0.5,
+      threat_category: 'inconclusive',
+      recommendations: [],
+      factors: [],
+      decision: { action: 'warn', severity: 'medium', ui: { color: 'amber' } },
+    };
 
     const restore = applyCredentialIntervention(mockResponse);
     expect(restore).toBeNull();

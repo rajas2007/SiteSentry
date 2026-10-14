@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy import case, func, or_, select
@@ -15,7 +15,7 @@ from src.schemas.analytics import (
 def _to_utc_date(dt: datetime) -> date:
     """Extract UTC calendar date from timezone-aware or naive datetime."""
     if dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc).date()
+        return dt.astimezone(UTC).date()
     return dt.date()
 
 
@@ -29,10 +29,10 @@ class AnalyticsService:
         Calculates aggregate statistics over actual persisted ScanHistory records
         for the past N calendar days (including today).
         """
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         today = now_utc.date()
         start_date = today - timedelta(days=days - 1)
-        cutoff = datetime.combine(start_date, time.min).replace(tzinfo=timezone.utc)
+        cutoff = datetime.combine(start_date, time.min).replace(tzinfo=UTC)
 
         # 1. Scalar summary metrics
         stmt_scalars = select(
@@ -106,9 +106,7 @@ class AnalyticsService:
         result_categories = await db.execute(stmt_categories)
         threat_categories: list[ThreatCategoryStat] = []
         for cat_val, count in result_categories.all():
-            pct = (
-                round((count / total_scans) * 100.0, 1) if total_scans > 0 else 0.0
-            )
+            pct = round((count / total_scans) * 100.0, 1) if total_scans > 0 else 0.0
             threat_categories.append(
                 ThreatCategoryStat(
                     category=cat_val or "unknown",

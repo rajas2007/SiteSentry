@@ -54,11 +54,13 @@ class SecurityEngine:
         # Routine terms (e.g. 'login', 'password') are expected on authentication pages
         # and must not by themselves make an otherwise legitimate page suspicious.
         non_routine_keywords = [
-            k for k in f.suspiciousKeywords
+            k
+            for k in f.suspiciousKeywords
             if k.strip().lower() not in ROUTINE_AUTH_KEYWORDS
         ]
         coercive_keywords = [
-            k for k in non_routine_keywords
+            k
+            for k in non_routine_keywords
             if k.strip().lower() in COERCIVE_THREAT_KEYWORDS
         ]
 

@@ -1,10 +1,55 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ExtensionMessage, ExtensionMessageResponse, PageAnalysisResponse } from '@site-sentry/shared-types';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import {
+  ExtensionMessage,
+  ExtensionMessageResponse,
+  PageAnalysisResponse,
+  PageFeatures,
+} from '@site-sentry/shared-types';
 import { submitAnalysis } from '../api/analysisClient';
 
 vi.mock('../api/analysisClient', () => ({
   submitAnalysis: vi.fn(),
 }));
+
+interface ChromeMock {
+  runtime: {
+    onMessage: {
+      addListener: Mock;
+    };
+  };
+  tabs: {
+    query: Mock;
+    onRemoved: {
+      addListener: Mock;
+    };
+  };
+  action: {
+    setBadgeBackgroundColor: Mock;
+    setBadgeText: Mock;
+  };
+  storage: {
+    session: {
+      get: Mock;
+      set: Mock;
+      remove: Mock;
+    };
+  };
+}
+
+const dummyFeatures: PageFeatures = {
+  hasPasswordField: false,
+  hasLoginForm: false,
+  formCount: 0,
+  externalLinkCount: 0,
+  iframeCount: 0,
+  scriptCount: 0,
+  imageCount: 0,
+  suspiciousKeywords: [],
+  pageTextLength: 0,
+  hasHttps: true,
+  hostnameLength: 10,
+  subdomainCount: 0,
+};
 
 describe('Background Service Worker Persistence', () => {
   let messageListener: (
@@ -14,8 +59,8 @@ describe('Background Service Worker Persistence', () => {
   ) => boolean | void;
 
   let tabRemovedListener: (tabId: number) => void;
-  let sessionStorageStore: Record<string, any>;
-  let chromeMock: any;
+  let sessionStorageStore: Record<string, unknown>;
+  let chromeMock: ChromeMock;
 
   const sampleResponse: PageAnalysisResponse = {
     analysis_id: 'test-123',
@@ -77,7 +122,7 @@ describe('Background Service Worker Persistence', () => {
           get: vi.fn(async (key: string) => ({
             [key]: sessionStorageStore[key],
           })),
-          set: vi.fn(async (items: Record<string, any>) => {
+          set: vi.fn(async (items: Record<string, unknown>) => {
             Object.assign(sessionStorageStore, items);
           }),
           remove: vi.fn(async (key: string) => {
@@ -108,7 +153,7 @@ describe('Background Service Worker Persistence', () => {
           url: 'https://example.com',
           title: 'Example',
           hostname: 'example.com',
-          features: {} as any,
+          features: dummyFeatures,
         },
       },
       { tab: { id: 101 } },
@@ -150,7 +195,7 @@ describe('Background Service Worker Persistence', () => {
     vi.resetModules();
     await import('./index');
 
-    chromeMock.tabs.query.mockImplementation((_opts: any, cb: (tabs: any[]) => void) => {
+    chromeMock.tabs.query.mockImplementation((_opts: unknown, cb: (tabs: Array<{ id?: number }>) => void) => {
       cb([{ id: 202 }]);
     });
 
@@ -174,7 +219,7 @@ describe('Background Service Worker Persistence', () => {
   });
 
   it('returns PENDING when neither memory nor session storage contains an analysis', async () => {
-    chromeMock.tabs.query.mockImplementation((_opts: any, cb: (tabs: any[]) => void) => {
+    chromeMock.tabs.query.mockImplementation((_opts: unknown, cb: (tabs: Array<{ id?: number }>) => void) => {
       cb([{ id: 303 }]);
     });
 
@@ -221,7 +266,7 @@ describe('Background Service Worker Persistence', () => {
           url: 'https://site-a.com',
           title: 'Site A',
           hostname: 'site-a.com',
-          features: {} as any,
+          features: dummyFeatures,
         },
       },
       { tab: { id: 505 } },
@@ -236,7 +281,7 @@ describe('Background Service Worker Persistence', () => {
           url: 'https://site-b.com',
           title: 'Site B',
           hostname: 'site-b.com',
-          features: {} as any,
+          features: dummyFeatures,
         },
       },
       { tab: { id: 505 } },
@@ -286,7 +331,7 @@ describe('Background Service Worker Persistence', () => {
           url: 'https://example.com',
           title: 'Example',
           hostname: 'example.com',
-          features: {} as any,
+          features: dummyFeatures,
         },
       },
       { tab: { id: 606 } },
@@ -316,7 +361,7 @@ describe('Background Service Worker Persistence', () => {
           url: 'https://example.com',
           title: 'Example',
           hostname: 'example.com',
-          features: {} as any,
+          features: dummyFeatures,
         },
       },
       { tab: {} },
@@ -340,7 +385,7 @@ describe('Background Service Worker Persistence', () => {
           url: 'https://example.com',
           title: 'Example',
           hostname: 'example.com',
-          features: {} as any,
+          features: dummyFeatures,
         },
       },
       { tab: { id: 707 } },
@@ -381,7 +426,7 @@ describe('Background Service Worker Persistence', () => {
           url: 'https://inconclusive.example.com',
           title: 'Inconclusive',
           hostname: 'inconclusive.example.com',
-          features: {} as any,
+          features: dummyFeatures,
         },
       },
       { tab: { id: 808 } },

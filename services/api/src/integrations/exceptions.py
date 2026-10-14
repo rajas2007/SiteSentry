@@ -13,5 +13,3 @@ class ThreatIntelUnavailableError(Exception):
 
 class ProviderUnavailableError(ThreatIntelUnavailableError):
     """Raised when a specific threat intelligence provider cannot be queried."""
-
-    pass

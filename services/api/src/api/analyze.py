@@ -1,11 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.schemas.analysis import PageAnalysisRequest, PageAnalysisResponse
-from src.schemas.scan import ScanHistoryResponse, DetailedScanHistoryResponse
+from src.schemas.scan import DetailedScanHistoryResponse, ScanHistoryResponse
 from src.services.history_service import HistoryService
 from src.services.scan_service import ScanService
 
@@ -36,6 +36,7 @@ async def get_scan_history(
         offset=offset,
         domain=domain,
     )
+
 
 @router.get("/history/{analysis_id}", response_model=DetailedScanHistoryResponse)
 async def get_scan_detail(

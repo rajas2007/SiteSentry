@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -22,9 +23,10 @@ class ScanHistoryResponse(BaseModel):
     limit: int
     offset: int
 
+
 class DetailedScanHistoryResponse(ScanHistoryItem):
     confidence: float
     recommendations: list[str]
     factors: list[str]
-    decision: dict
-    threat_intelligence: dict | None = None
+    decision: dict[str, Any]
+    threat_intelligence: dict[str, Any] | None = None

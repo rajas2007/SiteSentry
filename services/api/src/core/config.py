@@ -5,8 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve .env relative to the services/api directory so it loads
 # regardless of the working directory used to start the process.
-_CONFIG_DIR = Path(__file__).resolve().parent          # src/core/
-_API_DIR = _CONFIG_DIR.parent.parent                   # services/api/
+_CONFIG_DIR = Path(__file__).resolve().parent  # src/core/
+_API_DIR = _CONFIG_DIR.parent.parent  # services/api/
 _ENV_FILE = _API_DIR / ".env"
 
 

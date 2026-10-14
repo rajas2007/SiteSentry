@@ -2,7 +2,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.scan import ScanHistory
-from src.schemas.scan import ScanHistoryItem, ScanHistoryResponse, DetailedScanHistoryResponse
+from src.schemas.scan import (
+    DetailedScanHistoryResponse,
+    ScanHistoryItem,
+    ScanHistoryResponse,
+)
 
 
 class HistoryService:
@@ -52,7 +56,9 @@ class HistoryService:
         )
 
     @staticmethod
-    async def get_scan_by_id(db: AsyncSession, scan_id: str) -> DetailedScanHistoryResponse | None:
+    async def get_scan_by_id(
+        db: AsyncSession, scan_id: str
+    ) -> DetailedScanHistoryResponse | None:
         scan = await db.get(ScanHistory, scan_id)
         if not scan:
             return None
@@ -72,10 +78,13 @@ class HistoryService:
             confidence=report.get("confidence", 0.0),
             recommendations=report.get("recommendations", []),
             factors=report.get("factors", []),
-            decision=report.get("decision", {
-                "action": scan.verdict,
-                "severity": scan.severity,
-                "ui": {"color": "slate"}
-            }),
+            decision=report.get(
+                "decision",
+                {
+                    "action": scan.verdict,
+                    "severity": scan.severity,
+                    "ui": {"color": "slate"},
+                },
+            ),
             threat_intelligence=report.get("threat_intelligence", None),
         )

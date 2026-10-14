@@ -30,9 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if dialect != "sqlite":
             # An explicitly configured database (e.g. PostgreSQL) must
             # connect successfully.  Do not silently fall back to SQLite.
-            logger.error(
-                "Cannot connect to %s database: %s", dialect, e
-            )
+            logger.error("Cannot connect to %s database: %s", dialect, e)
             raise
         logger.warning("Database init warning (sqlite): %s", e)
     yield

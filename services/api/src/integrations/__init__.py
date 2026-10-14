@@ -7,7 +7,7 @@ from src.integrations.virustotal.client import VirusTotalClient
 
 __all__ = [
     "GoogleSafeBrowsingClient",
-    "VirusTotalClient",
-    "ThreatIntelUnavailableError",
     "ProviderUnavailableError",
+    "ThreatIntelUnavailableError",
+    "VirusTotalClient",
 ]

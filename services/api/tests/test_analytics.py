@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -65,7 +65,7 @@ def _create_scan(
     severity: str = "low",
     scanned_at: datetime | None = None,
 ) -> ScanHistory:
-    now = scanned_at or datetime.now(timezone.utc)
+    now = scanned_at or datetime.now(UTC)
     return ScanHistory(
         id=scan_id,
         domain=domain,
@@ -114,12 +114,36 @@ def test_analytics_empty_database(isolated_db, client):
 
 def test_analytics_mixed_distributions_and_averages(isolated_db, client):
     """Verifies metrics aggregation, average calculations, and risk/verdict distributions."""
-    now = datetime.now(timezone.utc)
-    _seed_records(isolated_db, [
-        _create_scan("scan-1", score=100, verdict="allow", severity="low", threat_category="safe", scanned_at=now),
-        _create_scan("scan-2", score=80, verdict="warn", severity="medium", threat_category="elevated_risk", scanned_at=now),
-        _create_scan("scan-3", score=20, verdict="block", severity="high", threat_category="credential_theft", scanned_at=now),
-    ])
+    now = datetime.now(UTC)
+    _seed_records(
+        isolated_db,
+        [
+            _create_scan(
+                "scan-1",
+                score=100,
+                verdict="allow",
+                severity="low",
+                threat_category="safe",
+                scanned_at=now,
+            ),
+            _create_scan(
+                "scan-2",
+                score=80,
+                verdict="warn",
+                severity="medium",
+                threat_category="elevated_risk",
+                scanned_at=now,
+            ),
+            _create_scan(
+                "scan-3",
+                score=20,
+                verdict="block",
+                severity="high",
+                threat_category="credential_theft",
+                scanned_at=now,
+            ),
+        ],
+    )
 
     res = client.get("/api/v1/analytics/overview?days=7")
     assert res.status_code == 200
@@ -150,17 +174,24 @@ def test_analytics_blocked_count_deduplication(isolated_db, client):
     Verifies rule: verdict == 'block' OR severity == 'high'.
     Records satisfying both conditions must count once.
     """
-    now = datetime.now(timezone.utc)
-    _seed_records(isolated_db, [
-        # 1. Matches both verdict='block' and severity='high' -> 1 threat blocked
-        _create_scan("scan-both", verdict="block", severity="high", scanned_at=now),
-        # 2. Matches verdict='block' only -> 1 threat blocked
-        _create_scan("scan-verdict-only", verdict="block", severity="medium", scanned_at=now),
-        # 3. Matches severity='high' only -> 1 threat blocked
-        _create_scan("scan-severity-only", verdict="warn", severity="high", scanned_at=now),
-        # 4. Matches neither -> 0
-        _create_scan("scan-clean", verdict="allow", severity="low", scanned_at=now),
-    ])
+    now = datetime.now(UTC)
+    _seed_records(
+        isolated_db,
+        [
+            # 1. Matches both verdict='block' and severity='high' -> 1 threat blocked
+            _create_scan("scan-both", verdict="block", severity="high", scanned_at=now),
+            # 2. Matches verdict='block' only -> 1 threat blocked
+            _create_scan(
+                "scan-verdict-only", verdict="block", severity="medium", scanned_at=now
+            ),
+            # 3. Matches severity='high' only -> 1 threat blocked
+            _create_scan(
+                "scan-severity-only", verdict="warn", severity="high", scanned_at=now
+            ),
+            # 4. Matches neither -> 0
+            _create_scan("scan-clean", verdict="allow", severity="low", scanned_at=now),
+        ],
+    )
 
     res = client.get("/api/v1/analytics/overview?days=7")
     assert res.status_code == 200
@@ -173,12 +204,19 @@ def test_analytics_blocked_count_deduplication(isolated_db, client):
 
 def test_analytics_privacy_violations(isolated_db, client):
     """Verifies that privacy_violations accurately counts records with threat_category == 'privacy_abuse'."""
-    now = datetime.now(timezone.utc)
-    _seed_records(isolated_db, [
-        _create_scan("scan-priv-1", threat_category="privacy_abuse", scanned_at=now),
-        _create_scan("scan-priv-2", threat_category="privacy_abuse", scanned_at=now),
-        _create_scan("scan-clean", threat_category="safe", scanned_at=now),
-    ])
+    now = datetime.now(UTC)
+    _seed_records(
+        isolated_db,
+        [
+            _create_scan(
+                "scan-priv-1", threat_category="privacy_abuse", scanned_at=now
+            ),
+            _create_scan(
+                "scan-priv-2", threat_category="privacy_abuse", scanned_at=now
+            ),
+            _create_scan("scan-clean", threat_category="safe", scanned_at=now),
+        ],
+    )
 
     res = client.get("/api/v1/analytics/overview?days=14")
     assert res.status_code == 200
@@ -189,19 +227,22 @@ def test_analytics_privacy_violations(isolated_db, client):
 
 def test_analytics_date_filtering_and_window(isolated_db, client):
     """Verifies that only records within the requested N calendar days are counted."""
-    now = datetime.now(timezone.utc)
-    _seed_records(isolated_db, [
-        # Inside 7-day window (today)
-        _create_scan("scan-today", scanned_at=now),
-        # Inside 7-day window (3 days ago)
-        _create_scan("scan-3d", scanned_at=now - timedelta(days=3)),
-        # Inside 7-day window (6 days ago)
-        _create_scan("scan-6d", scanned_at=now - timedelta(days=6)),
-        # OUTSIDE 7-day window (8 days ago)
-        _create_scan("scan-8d", scanned_at=now - timedelta(days=8)),
-        # OUTSIDE 7-day window (20 days ago)
-        _create_scan("scan-20d", scanned_at=now - timedelta(days=20)),
-    ])
+    now = datetime.now(UTC)
+    _seed_records(
+        isolated_db,
+        [
+            # Inside 7-day window (today)
+            _create_scan("scan-today", scanned_at=now),
+            # Inside 7-day window (3 days ago)
+            _create_scan("scan-3d", scanned_at=now - timedelta(days=3)),
+            # Inside 7-day window (6 days ago)
+            _create_scan("scan-6d", scanned_at=now - timedelta(days=6)),
+            # OUTSIDE 7-day window (8 days ago)
+            _create_scan("scan-8d", scanned_at=now - timedelta(days=8)),
+            # OUTSIDE 7-day window (20 days ago)
+            _create_scan("scan-20d", scanned_at=now - timedelta(days=20)),
+        ],
+    )
 
     res = client.get("/api/v1/analytics/overview?days=7")
     assert res.status_code == 200
@@ -215,14 +256,21 @@ def test_analytics_date_filtering_and_window(isolated_db, client):
 
 def test_analytics_continuous_timeline_with_zero_days(isolated_db, client):
     """Verifies continuous chronological daily buckets including zero-count days."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     today = now.date()
-    four_days_ago = datetime.combine(today - timedelta(days=4), time(12, 0)).replace(tzinfo=timezone.utc)
+    four_days_ago = datetime.combine(today - timedelta(days=4), time(12, 0)).replace(
+        tzinfo=UTC
+    )
 
-    _seed_records(isolated_db, [
-        _create_scan("scan-today", verdict="allow", severity="low", scanned_at=now),
-        _create_scan("scan-4d", verdict="block", severity="high", scanned_at=four_days_ago),
-    ])
+    _seed_records(
+        isolated_db,
+        [
+            _create_scan("scan-today", verdict="allow", severity="low", scanned_at=now),
+            _create_scan(
+                "scan-4d", verdict="block", severity="high", scanned_at=four_days_ago
+            ),
+        ],
+    )
 
     res = client.get("/api/v1/analytics/overview?days=5")
     assert res.status_code == 200
@@ -255,16 +303,19 @@ def test_analytics_continuous_timeline_with_zero_days(isolated_db, client):
 
 def test_analytics_preserves_unknown_categories_and_severities(isolated_db, client):
     """Verifies that unknown severities/categories are preserved and not silently reclassified."""
-    now = datetime.now(timezone.utc)
-    _seed_records(isolated_db, [
-        _create_scan(
-            "scan-unknown",
-            verdict="quarantine",
-            severity="critical",
-            threat_category="zero_day_exploit",
-            scanned_at=now,
-        )
-    ])
+    now = datetime.now(UTC)
+    _seed_records(
+        isolated_db,
+        [
+            _create_scan(
+                "scan-unknown",
+                verdict="quarantine",
+                severity="critical",
+                threat_category="zero_day_exploit",
+                scanned_at=now,
+            )
+        ],
+    )
 
     res = client.get("/api/v1/analytics/overview?days=7")
     assert res.status_code == 200
@@ -281,10 +332,11 @@ def test_analytics_preserves_unknown_categories_and_severities(isolated_db, clie
 
 def test_analytics_handles_null_final_privacy_score(isolated_db, client):
     """Verifies that scans with final_privacy_score=None (standard in legacy records) compute smoothly."""
-    now = datetime.now(timezone.utc)
-    _seed_records(isolated_db, [
-        _create_scan("scan-null-priv", privacy_score=None, scanned_at=now)
-    ])
+    now = datetime.now(UTC)
+    _seed_records(
+        isolated_db,
+        [_create_scan("scan-null-priv", privacy_score=None, scanned_at=now)],
+    )
 
     res = client.get("/api/v1/analytics/overview?days=7")
     assert res.status_code == 200
