@@ -23,7 +23,6 @@ permissions:
 
 env:
   ENVIRONMENT: "test"
-  DATABASE_URL: "sqlite+aiosqlite:///:memory:"
   REDIS_URL: "redis://localhost:6379/0"
 
 jobs:

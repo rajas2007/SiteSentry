@@ -12,8 +12,10 @@ import pytest
 _TEST_DB_FILE = Path(tempfile.gettempdir()) / "sitesentry_test.db"
 _DEFAULT_TEST_DB_URL = f"sqlite+aiosqlite:///{_TEST_DB_FILE}"
 
-if not os.environ.get("DATABASE_URL") or "postgresql" in os.environ.get(
-    "DATABASE_URL", ""
+if (
+    not os.environ.get("DATABASE_URL")
+    or "postgresql" in os.environ.get("DATABASE_URL", "")
+    or ":memory:" in os.environ.get("DATABASE_URL", "")
 ):
     os.environ["DATABASE_URL"] = _DEFAULT_TEST_DB_URL
 
