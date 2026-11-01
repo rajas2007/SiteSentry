@@ -1,51 +1,102 @@
-# 09b Feature Extraction Engine
+# 09b. Feature Extraction Engine & Boundaries
 
-## 1. Overview
-The Feature Extraction Engine serves as the critical translation layer between raw, unstructured web data (HTML, network requests, raw URLs) and the highly structured format required by the downstream Rule Engine and Machine Learning Engine.
+* **Product:** Site Sentry
+* **Status:** Active Core Specification & Contract Reference
+* **Canonical Path:** `dev/09b_FEATURE_EXTRACTION_ENGINE.md`
+* **Related Schemas:** `services/api/src/engines/machine_learning/schemas.py`
+* **Structural Model Contract:** `services/api/src/engines/machine_learning/MODEL_CONTRACT.md`
+* **Privacy Contract:** [31. Data Privacy and Retention Specification](./31_DATA_PRIVACY_AND_RETENTION.md)
 
-By isolating this logic into a dedicated engine, the TrustLens AI Platform ensures that analyzers do not calculate scores directly, but instead extract normalized features that can be weighted dynamically later in the pipeline.
+---
 
-## 2. Responsibilities
-- Receives raw payloads from the Data Collection Engine (e.g., Browser Extension).
-- Parses, sanitizes, and normalizes the data.
-- Generates categorized Feature Vectors (numeric, boolean, categorical arrays).
-- Passes these vectors to the Sub-Engines and ML Engine.
+## 1. Overview & Extraction Boundaries
 
-## 3. Extracted Feature Categories
+The Feature Extraction subsystem defines the structural inputs used by Site Sentry's deterministic security engines and offline ML utilities. It establishes clean boundaries between:
+1. **Client-Extracted Features:** Lightweight DOM metrics extracted in the browser extension content script.
+2. **Backend-Derived Features:** URL, hostname, and protocol features calculated by the backend.
+3. **Threat Intelligence Features:** External counters returned by Google Safe Browsing and VirusTotal APIs.
 
-### 3.1. URL Features
-- `url_length`: Integer (e.g., `85`)
-- `url_entropy`: Float (e.g., `4.82` - high entropy indicates domain generation algorithms)
-- `has_ip_address`: Boolean
-- `tld_reputation_tier`: Categorical (`1`, `2`, `3`)
-- `subdomain_count`: Integer
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Browser Extension (Client)                                   │
+│ Extracts: DOM counts, boolean flags (has_password, num_forms) │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ POST /api/v1/analyze
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Backend API Gateway & URL Normalizer                         │
+│ Derives: Hostname entropy, URL length, Punycode, Scheme      │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Threat Intelligence Engine                                   │
+│ Queries: Google Safe Browsing, VirusTotal Counters           │
+└──────────────────────────────────────────────────────────────┘
+```
 
-### 3.2. SSL Features
-- `has_https`: Boolean
-- `ssl_issuer_reputation`: Categorical (`High`, `Medium`, `Low`, `Untrusted`)
-- `days_until_expiry`: Integer
-- `is_ev_cert`: Boolean (Extended Validation)
+---
 
-### 3.3. DOM & Visual Features
-- `password_field_count`: Integer
-- `hidden_iframe_count`: Integer
-- `suspicious_script_count`: Integer (e.g., highly obfuscated JS)
-- `marketing_popup_count`: Integer
-- `prechecked_consent_boxes`: Boolean
+## 2. Feature Provenance & Ownership
 
-### 3.4. Cookie & Tracker Features
-- `third_party_cookie_count`: Integer
-- `known_tracker_count`: Integer
-- `supercookie_detected`: Boolean
+| Feature Group | Originating Component | Extracted Signals | Strict Constraints |
+| :--- | :--- | :--- | :--- |
+| **Client Structural (DOM)** | Extension Content Script | `has_password_field`, `num_forms`, `num_scripts`, `has_login_form`, `external_form_action`, `external_links_ratio` | **No raw HTML source.** No input values, passwords, keystrokes, or PII. |
+| **Backend Structural (URL)** | Backend (`SecurityEngine`) | `url_length`, `hostname_length`, `subdomain_count`, `has_ip_host`, `entropy_score`, `has_punycode` | Normalized directly from target URL string. |
+| **Threat Intelligence** | Backend (`ThreatIntelEngine`) | `vt_malicious_count`, `vt_suspicious_count`, `gsb_threat_detected`, `is_blacklisted` | External API queries. Fails safely per [28. Provider Resilience Contract](./28_PROVIDER_RESILIENCE_CONTRACT.md). |
+| **Privacy (Secondary)** | Extension & Backend | `tracker_count`, `cookie_count` | Quantitative counts only; no cookie values or session tokens. |
 
-### 3.5. Threat & Domain Features (Injected from Threat Intel Engine)
-- `domain_age_days`: Integer
-- `virus_total_positives`: Integer
-- `is_phish_tank`: Boolean
+---
 
-## 4. Pipeline Integration
-The Feature Extraction Engine does **not** make decisions.
-If `virus_total_positives = 5`, it does not set the Trust Score to 0. It simply outputs the integer `5` in the feature vector. It is the job of the **Score Fusion Engine** and **Rule Engine** to interpret this feature and apply the appropriate penalty.
+## 3. The Canonical 27-Feature Contract (`v1`)
 
-## 5. Extensibility
-When a new plugin is added (e.g., the Web3 Engine), a corresponding feature extractor module is added here (e.g., `wallet_reputation_score`, `smart_contract_vulnerabilities_count`). This ensures the Machine Learning model can easily be retrained on new features without rewriting core infrastructure.
+The canonical feature schema defined in `services/api/src/engines/machine_learning/schemas.py` defines 27 features in strict order (`FEATURE_ORDER`):
+
+### Structural Features (Indices 0–19: The `v1_structural` Boundary)
+0. `has_https` (bool)
+1. `hostname_length` (int)
+2. `url_length` (int)
+3. `subdomain_count` (int)
+4. `has_ip_host` (bool)
+5. `has_punycode` (bool)
+6. `has_suspicious_tld` (bool)
+7. `entropy_score` (float)
+8. `has_login_form` (bool)
+9. `has_password_field` (bool)
+10. `external_form_action` (bool)
+11. `has_iframe` (bool)
+12. `hidden_element_count` (int)
+13. `num_images` (int)
+14. `num_links` (int)
+15. `num_scripts` (int)
+16. `external_links_ratio` (float)
+17. `has_eval_or_obfuscation` (bool)
+18. `has_credential_input` (bool)
+19. `num_forms` (int)
+
+### Threat Intelligence & External Features (Indices 20–26)
+20. `gsb_threat_detected` (bool)
+21. `vt_malicious_count` (int)
+22. `vt_suspicious_count` (int)
+23. `vt_harmless_count` (int)
+24. `vt_undetected_count` (int)
+25. `domain_age_days` (int)
+26. `is_blacklisted` (bool)
+
+---
+
+## 4. Feature Isolation Contract: `v1_structural`
+
+Per `services/api/src/engines/machine_learning/MODEL_CONTRACT.md`:
+* **Clean Boundary:** Any candidate machine learning model evaluated in the future must train and infer strictly on **features 0–19**.
+* **Threat Intel Separation:** Features 20–26 must **never** be included in an ML model input tensor. Including third-party threat counters in an ML classifier creates circular dependencies, masks genuine structural phishing signals, and causes catastrophic failure during provider outages.
+* **Deterministic Rules Use Both:** The deterministic `ScoreFusionEngine` combines findings from structural features (0–19) and threat intelligence features (20–26) using explicit rules, deduction caps, and hard overrides.
+
+---
+
+## 5. Unavailable & Restricted Contexts
+
+In environments where DOM inspection is restricted (e.g., PDF viewer, browser internal pages, disabled content scripts):
+* Client DOM features default to `None` or safe defaults (`has_password_field = False`, `num_forms = 0`).
+* Backend flags the scan as having `partial_data = True`.
+* Downstream decision logic evaluates whether threat intelligence alone is sufficient, or yields an `INCONCLUSIVE` verdict per [27. Security Decision Contract](./27_SECURITY_DECISION_CONTRACT.md).

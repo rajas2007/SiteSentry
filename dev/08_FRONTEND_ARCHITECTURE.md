@@ -1,68 +1,62 @@
-# 08 Frontend Architecture
+# 08. Frontend Dashboard Architecture
 
-## 1. Overview
-The Frontend Architecture refers to the TrustLens Web Dashboard, a standalone web application where users can view their scan history, threat analytics, manage account settings, and view aggregated trends. 
+* **Product:** Site Sentry
+* **Framework:** Next.js 14 (App Router) with React 18 & TypeScript
+* **Canonical Path:** `dev/08_FRONTEND_ARCHITECTURE.md`
 
-## 2. Framework & Libraries
-- **Core Framework:** Next.js (App Router)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
-- **Components:** shadcn/ui (Radix UI)
-- **Data Fetching:** TanStack Query (React Query)
-- **State Management:** Zustand (for global UI state like sidebar toggles, theme)
-- **Authentication:** NextAuth.js or generic JWT handling with the FastAPI backend.
+---
 
-## 3. Directory Structure (App Router)
+## 1. Overview & Current Scope
+
+The Site Sentry Management Dashboard (`apps/dashboard/`) is a web interface allowing users and administrators to review scan histories, examine technical security findings, and monitor threat analytics.
+
+Per project architectural guidelines (Section 3.17), the dashboard retains all existing useful capabilities while strictly avoiding scope creep into speculative enterprise fleet management, complex team RBAC, or unneeded account tiers.
+
+---
+
+## 2. Directory Structure & Route Hierarchy
 
 ```text
 apps/dashboard/src/
 ├── app/
-│   ├── (auth)/                 # Grouped auth routes
-│   │   ├── login/page.tsx
-│   │   └── register/page.tsx
-│   ├── (dashboard)/            # Grouped dashboard routes (requires auth)
-│   │   ├── layout.tsx          # Main sidebar & header layout
-│   │   ├── page.tsx            # Overview / Home
-│   │   ├── history/page.tsx    # Scan history table
-│   │   ├── analytics/page.tsx  # Charts and graphs
-│   │   └── settings/page.tsx   # User preferences
-│   ├── globals.css             # Tailwind imports
-│   └── layout.tsx              # Root layout (Providers)
+│   ├── layout.tsx              # Root layout (Theme, Providers, Shell)
+│   ├── page.tsx                # Overview & Metrics summary
+│   ├── history/
+│   │   ├── page.tsx            # Live scan history table
+│   │   └── [id]/page.tsx       # Detailed scan inspection & evidence audit
+│   └── analytics/
+│       └── page.tsx            # Threat distribution & provider availability metrics
 ├── components/
-│   ├── ui/                     # shadcn components (buttons, inputs, cards)
-│   ├── charts/                 # Recharts wrapper components
-│   └── layout/                 # Sidebar, Header, UserNav
+│   ├── Navbar.tsx              # Navigation bar & status indicator
+│   ├── ScanHistoryTable.tsx    # Paginated scan table with sorting & filtering
+│   ├── AnalysisDetails.tsx     # Breakdown of structural findings & provider lookups
+│   └── MetricsCards.tsx        # High-level aggregate cards (Total Scans, Blocked Threats)
 ├── lib/
-│   ├── api.ts                  # Axios/fetch configuration interceptors
-│   ├── utils.ts                # Tailwind merge utils (cn)
-│   └── hooks/                  # Custom React hooks (e.g., useUser)
-└── store/
-    └── ui-store.ts             # Zustand store
+│   ├── api.ts                  # Fetch client configured for backend REST endpoints
+│   └── utils.ts                # Tailwind utility functions
+└── tailwind.config.js
 ```
 
-## 4. Key Design Patterns
+---
 
-### 4.1. Server Components vs Client Components
-Next.js App Router uses Server Components by default.
-- **Server Components:** Used for fetching initial page data (if SEO/speed requires it) and rendering static layouts (Sidebars, Headers).
-- **Client Components (`"use client"`):** Used for interactive elements (Buttons, Forms, Charts, Data Tables with sorting/filtering).
+## 3. Real Backend Integration & Data Integrity
 
-### 4.2. API Integration
-The dashboard communicates directly with the FastAPI backend.
-- We use an Axios instance configured in `lib/api.ts` to automatically attach JWT authorization headers.
-- **TanStack Query** is used in Client Components for fetching, caching, and updating asynchronous data (e.g., the scan history table). This handles loading states, error states, and pagination elegantly.
+Following the Milestone 1B integrity audit, the dashboard connects exclusively to genuine backend endpoints without synthetic mock generators or fabricated fallback records:
+* **`GET /api/v1/history`:** Fetches live scan history with pagination and timestamp ordering.
+* **`GET /api/v1/history/{analysis_id}`:** Fetches comprehensive scan telemetry, including exact rule findings, Google Safe Browsing and VirusTotal vendor counts, and final decision actions.
+* **`GET /api/v1/analytics/overview`:** Fetches real-time aggregated metrics computed directly from PostgreSQL `ScanHistory` and `DomainReputation` tables.
 
-### 4.3. UI / UX Approach
-- **Design System:** We rely heavily on Tailwind CSS and `shadcn/ui` to build a clean, modern, dark-mode native interface.
-- **Visuals:** Use vibrant colors for statuses (Emerald for Safe, Amber for Warning, Rose for Danger) against a sleek dark/light theme background.
-- **Data Visualization:** Use Recharts to display trend lines of threats blocked over time, and pie charts showing the breakdown of tracker types encountered.
+### Empty and Error States
+If the backend is unreachable or the database contains zero scans, the dashboard presents honest empty states ("No scan history recorded yet") rather than injecting synthetic demo data.
 
-## 5. Security & Authentication
-- The dashboard is protected via JWT tokens.
-- Routes under `(dashboard)` verify authentication state via middleware or higher-order components.
-- Ensure XSS protection by utilizing React's native escaping and sanitizing any raw HTML (if applicable, though we should avoid `dangerouslySetInnerHTML`).
+---
 
-## 6. Related Documents
-- [System Architecture](./03_SYSTEM_ARCHITECTURE.md)
-- [UI/UX Guidelines](./17_UI_UX_GUIDELINES.md)
-- [Component Tree](./18_COMPONENT_TREE.md)
+## 4. Design & UX System
+
+* **Styling:** Tailwind CSS with dark-mode native styling.
+* **Status Palette:**
+  * Emerald / Green: Safe (`ALLOW`)
+  * Amber / Yellow: Suspicious / Inconclusive (`WARN`, `INCONCLUSIVE`)
+  * Rose / Red: Confirmed Threat (`BLOCK`)
+  * Slate / Gray: Offline / Error (`ERROR`)
+* **Accessibility:** Semantic HTML tables, ARIA attributes on interactive badges, and full keyboard navigation.

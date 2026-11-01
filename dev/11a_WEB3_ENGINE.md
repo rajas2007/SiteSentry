@@ -1,27 +1,37 @@
-# 11a Web3 Engine
+# 11a. Web3 Engine (Deferred)
 
-## 1. Overview
-The Web3 Engine is a specialized plugin for the TrustLens AI Platform. Because Web3 and cryptocurrency interactions carry unique, high-stakes risks (e.g., wallet drainers), this engine provides dedicated analysis for blockchain-related threats.
+* **Product:** Site Sentry
+* **Status:** Deferred per ADR-004 (Inactive Prototype)
+* **Canonical Path:** `dev/11a_WEB3_ENGINE.md`
+* **Related ADR:** [ADR-004: Deferring Web3 Auditing and Community Intelligence Systems](./decisions/ADR-004-defer-web3-community-intelligence.md)
+* **Prototype Directory:** `services/api/src/engines/web3/`
 
-It is an **optional plugin** that is dynamically activated by the Plugin Manager only when a website interacts with Web3 providers (like `window.ethereum`) or contains crypto-specific DOM features.
+---
 
-## 2. Responsibilities
-- **Wallet Reputation:** Analyzes the historical reputation of destination addresses when a user is prompted to connect their wallet or sign a transaction.
-- **Smart Contract Reputation:** Audits smart contracts involved in a transaction against the internal **Knowledge Base** for known honeypot signatures or malicious functions.
-- **Transaction Warning:** Interfaces with the Decision Engine to issue high-priority alerts before a user signs risky payloads (e.g., `setApprovalForAll`, `eth_sign`).
+## 1. Overview & Deferred Status
 
-## 3. Threat Categories Addressed
-- **Crypto Scam:** Fake airdrops, token presale scams, and phishing sites mimicking legitimate decentralized exchanges (DEXs) like Uniswap.
-- **Wallet Drainers:** Malicious scripts designed to trick users into signing approvals that empty their wallets.
+The **Web3 Engine** was originally conceived as a specialized subsystem for detecting cryptocurrency wallet drainers, analyzing smart contract bytecode, and auditing Ethereum/Solana wallet connection requests.
 
-## 4. External Integrations
-The Web3 Engine may rely on specialized blockchain APIs (e.g., Etherscan, Chainalysis, or specialized Web3 security feeds) via the **Threat Intelligence Engine**.
+Under Site Sentry's revised architecture, **the Web3 Engine is officially deferred from immediate production roadmaps**:
+* It is **excluded** from the active scan path (`ScanService.analyze_page()`).
+* No live blockchain node connections or third-party crypto-threat APIs (e.g., Etherscan, Chainalysis) are configured or queried.
+* Existing prototype code located in `services/api/src/engines/web3/` is preserved in the repository as an inactive, modular reference.
 
-## 5. Multi-Dimensional Scoring impact
-When the Web3 Engine plugin is active, the **Score Fusion Engine** will generate and output a dedicated **Web3 Score**. 
+---
 
-If the Web3 Engine detects a critical threat (e.g., Known Scam Address), the **Rule Engine** will immediately propagate a severe penalty to the **Overall Trust Score**, triggering the **Decision Engine** to issue a highly visible blocking overlay in the browser extension.
+## 2. Rationale for Deferral
 
-## 6. Future Scope
-- **Banking Plugin:** A similar plugin concept could be developed for traditional fiat banking sites, activating specifically on known banking domains to enforce maximum strictness.
-- **Healthcare Plugin:** Specialized HIPAA-compliance checks for healthcare portals.
+1. **Alignment with Core Purpose:** Site Sentry is focused on protecting the broad population of internet users from credential harvesting, malware, and brand impersonation. Crypto wallet drainers represent a specialized niche with high maintenance requirements.
+2. **Third-Party RPC Volatility:** Querying blockchain nodes introduces high latency, third-party RPC rate limiting, and unpredictability into a real-time browser security tool designed for sub-500ms navigation responses.
+3. **Attack Surface Minimization:** Disabling outbound blockchain RPC calls eliminates potential Server-Side Request Forgery (SSRF) risks and unnecessary external API keys from backend deployments.
+
+---
+
+## 3. Preserved Conceptual Architecture (Future Scope)
+
+If the team decides to reactivate Web3 security in future phases, the preserved architecture encompasses:
+* **Connection Inspection:** Identifying when a page requests wallet access via `window.ethereum` or Solana providers.
+* **Payload Auditing:** Warning users against signing dangerous approval payloads (e.g., `setApprovalForAll`, `eth_sign`).
+* **Contract Threat Feeds:** Integrating with established Web3 threat intelligence feeds rather than compiling and decompiling smart contracts on the backend.
+
+Reactivation criteria are formally defined in [ADR-004](./decisions/ADR-004-defer-web3-community-intelligence.md).

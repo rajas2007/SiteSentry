@@ -1,55 +1,49 @@
-# 11 Privacy Intelligence Engine
+# 11. Privacy Intelligence Engine
 
-## 1. Overview
-The Privacy Intelligence Engine (formerly Privacy Engine) focuses on how a website handles user data, tracks user behavior, and respects user consent. It protects users against data exploitation, Spam, Tracking, and Privacy Abuse.
+* **Product:** Site Sentry
+* **Status:** Active Secondary Capability (Reduced Scope per Section 3.13)
+* **Canonical Path:** `dev/11_PRIVACY_ENGINE.md`
+* **Implementation:** `services/api/src/engines/privacy/engine.py`
+* **Related Specification:** [31. Data Privacy and Retention Specification](./31_DATA_PRIVACY_AND_RETENTION.md)
 
-## 2. Responsibilities
-Like the Security Engine, the Privacy Intelligence Engine consumes normalized data from the **Feature Extraction Engine**. It analyzes these features to identify invasive data practices.
+---
 
-## 3. Core Analyzers
+## 1. Overview & Revised Product Scope
 
-### 3.1. Tracker & Cookie Analysis
-Evaluates the usage of first and third-party storage.
-- Identifies fingerprinting scripts and cross-site tracking pixels.
-- Flags "supercookies" and persistent tracking mechanisms.
-- Evaluates cookie consent mechanisms (detecting dark patterns like hidden "Opt-Out" buttons).
+The **Privacy Intelligence Engine** (`services/api/src/engines/privacy/`) provides secondary analysis of tracking technologies and data collection practices on visited websites.
 
-### 3.2. Email Collection & Marketing Detection
-Assesses the aggression of user data harvesting.
-- Detects immediate, unprompted email capture popups.
-- Identifies pre-checked consent boxes for marketing communications.
+Under Site Sentry's revised product priorities, **website security (phishing, malware, credential theft) is the primary focus**. Privacy intelligence is maintained as a lightweight, secondary diagnostic capability.
 
-### 3.3. Privacy Policy AI Analysis
-Translates dense legal privacy policies into actionable intelligence.
-- Utilizing Natural Language Processing (via LLM APIs), it scans extracted policy text.
-- **Data Sharing Detection:** Specifically flags clauses allowing the sale or sharing of PII with "third-party affiliates" or "marketing partners".
+---
 
-## 4. Output Contract
-The Privacy Intelligence Engine outputs intermediate findings rather than a final score.
+## 2. Active Capabilities vs. Deferred Modules
 
-```json
-{
-  "engine": "PrivacyIntelligence",
-  "findings": [
-    {
-      "category": "Tracking",
-      "severity": "high",
-      "feature_trigger": "third_party_cookie_count",
-      "raw_value": 45,
-      "internal_code": "PRIV-TRK-EXCESS"
-    },
-    {
-      "category": "Privacy Abuse",
-      "severity": "critical",
-      "feature_trigger": "policy_data_sold",
-      "raw_value": true,
-      "internal_code": "PRIV-POL-SALE"
-    }
-  ]
-}
-```
-These findings are passed to the **Score Fusion Engine**, which calculates the final user-facing **Privacy Score** (0-100).
+### 2.1. Active Secondary Capabilities
+* **Third-Party Tracker Detection:** Evaluates counts of external tracking scripts and known advertising/analytics domains present on the page.
+* **Cookie Aggregation:** Evaluates first-party and third-party cookie volume observed by the extension content script.
+* **Privacy Score Generation:** Computes a normalized Privacy Score ($0–100$) reflecting tracking density.
 
-## 5. Related Engines
-- [Feature Extraction Engine](./09b_FEATURE_EXTRACTION_ENGINE.md)
-- [Score Fusion Engine](./16_SCORING_ENGINE.md)
+### 2.2. Deferred Capabilities (Future Scope)
+To avoid unnecessary operational complexity and external API costs, the following speculative privacy features are officially **deferred**:
+* **LLM-Based Privacy Policy Summarization:** Automated analysis of legal privacy policy text via OpenAI/Anthropic APIs is deferred.
+* **Canvas / Audio Fingerprinting Auditing:** Deep heuristic detection of browser fingerprinting techniques is deferred.
+* **Dark Pattern & Consent Banner Extraction:** Automated parsing of GDPR/CCPA cookie consent modals is deferred.
+* **Unverifiable Data Sharing Claims:** Generating claims about whether a company sells data without verified evidence is rejected.
+
+---
+
+## 3. Engine Pipeline Flow
+
+1. **Input:** Receives quantitative tracker metrics and cookie counts from `ScanService`.
+2. **Analysis:** `PrivacyIntelligenceEngine.analyze()` compares counts against baseline thresholds:
+   * Tracking domain count $> 10 \implies$ Medium finding (deduction $-15$ pts).
+   * Tracking domain count $> 25 \implies$ High finding (deduction $-30$ pts).
+3. **Score:** Outputs a `PrivacyResult` containing findings and a normalized privacy score.
+4. **Integration:** Handed off to `ScoreFusionEngine` for display in the popup and dashboard. Privacy deductions do **not** override security findings or trigger `BLOCK` actions.
+
+---
+
+## 4. Privacy & Data Minimization Safeguards
+
+* The Privacy Intelligence Engine inspects only metadata (domain names of scripts, cookie counts).
+* Cookie values, session identifiers, and user browsing history are **never** stored or inspected per [31. Data Privacy and Retention](./31_DATA_PRIVACY_AND_RETENTION.md).

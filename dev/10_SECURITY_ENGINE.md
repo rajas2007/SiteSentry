@@ -1,35 +1,61 @@
-# 10 Security Engine
+# 10. Security Engine
 
-## 1. Overview
-The Security Engine is a core plugin in the TrustLens AI Platform responsible for evaluating the structural and payload-based security of a website.
+* **Product:** Site Sentry
+* **Status:** Active & Prioritized (Core Analytical Engine)
+* **Canonical Path:** `dev/10_SECURITY_ENGINE.md`
+* **Implementation:** `services/api/src/engines/security/engine.py`
+* **Related Contract:** [27. Security Decision Contract](./27_SECURITY_DECISION_CONTRACT.md)
 
-*Note: In previous iterations, this engine directly queried OSINT feeds and calculated final scores. Under the new platform architecture, it relies purely on the **Feature Extraction Engine** for its inputs and relies on the **Score Fusion Engine** to finalize its outputs.*
+---
 
-## 2. Responsibilities
-The Security Engine focuses purely on analyzing the *intrinsic* properties of the webpage and its transport layer, identifying patterns indicative of:
-- **Credential Theft:** Specifically targeting Fake Logins and password harvesting.
-- **Browser Hijacking:** Detecting abusive scripts that alter browser behavior.
-- **Malware Distribution:** Identifying drive-by download structures or hidden cryptominers.
+## 1. Overview & Architectural Role
 
-## 3. Internal Analyzers
-The engine runs several sub-analyzers on the extracted feature vectors:
+The **Security Engine** (`services/api/src/engines/security/`) is the central deterministic analyzer for intrinsic website characteristics in Site Sentry. It evaluates observable lexical, transport, and structural DOM signals to detect phishing kits, credential-harvesting mechanisms, and deceptive infrastructure.
 
-### 3.1. Lexical Analyzer
-Analyzes URL structures for anomalies (e.g., high entropy, IP-based URLs, typosquatting of known brands).
+The Security Engine executes entirely in-process within `ScanService.analyze_page()`, producing structured findings with associated severity ratings and evidence objects.
 
-### 3.2. TLS/SSL Analyzer
-Evaluates the transport layer security features (e.g., invalid certificates, weak ciphers, untrusted issuers).
+---
 
-### 3.3. Payload Analyzer
-Evaluates the DOM features extracted by the client (e.g., presence of `<input type="password">` on non-HTTPS pages, hidden `<iframe>` elements used for clickjacking).
+## 2. Core Analyzers & Evaluated Signals
 
-## 4. Pipeline Execution
-1. The **Feature Extraction Engine** passes a structured dictionary of security-related features (e.g., `has_password_field: true`, `has_https: false`).
-2. The Security Engine processes these features.
-3. It does **not** output a final "Security Score".
-4. Instead, it outputs a set of intermediate findings and risk multipliers (e.g., `PayloadRisk: High`, `TLSRisk: Critical`).
-5. These findings are passed downstream to the **Rule Engine** (for deterministic zero-tolerance blocking) and the **Machine Learning Engine** (for probabilistic context evaluation).
+### 2.1. Lexical & Hostname Analyzer
+Evaluates properties of the URL and fully qualified domain name (FQDN):
+* **IP-Based Hostnames:** Detects direct IPv4 or IPv6 access (e.g., `http://192.168.1.1/login`), a hallmark of disposable phishing hosts.
+* **Punycode / Homoglyphs:** Detects Internationalized Domain Names (`xn--`) used to impersonate established brand domains with lookalike Cyrillic/Greek characters.
+* **Structural Entropy:** Computes Shannon entropy on host and path strings to detect Domain Generation Algorithms (DGA) and randomized credential drops.
+* **URL Structural Metrics:** Evaluates URL length, subdomain count, and path depth against statistical anomaly thresholds.
 
-## 5. Related Engines
-- [Feature Extraction Engine](./09b_FEATURE_EXTRACTION_ENGINE.md)
-- [Threat Intelligence Engine](./10a_THREAT_INTELLIGENCE_ENGINE.md) (Handles external checks now)
+### 2.2. Transport Security Analyzer
+* **Protocol Verification:** Checks for `https://` vs. unencrypted `http://`.
+* **Contextual Escalation:** If sensitive elements (such as password fields or login forms) are detected on unencrypted HTTP pages, the finding severity is escalated to **High** or **Critical**.
+
+### 2.3. DOM Structural & Form Target Analyzer
+Inspects lightweight structural DOM metrics provided by the extension content script:
+* **Credential Input Context:** Detects `<input type="password">` elements and form structures.
+* **External Form Submission:** Compares form `action` URLs against the page origin. Forms submitting credentials to disparate external domains or IP hosts trigger critical credential harvesting alerts.
+* **Obfuscation & Hidden Elements:** Checks for hidden iframes (`<iframe>`), zero-dimension elements, or script obfuscation markers often used in phishing cloaking.
+
+---
+
+## 3. Findings vs. Confirmed Threats
+
+To avoid alert fatigue and maintain user trust, the Security Engine strictly distinguishes **suspicious indicators** from **confirmed malicious findings**:
+
+| Signal Type | Example Finding | Severity | Downstream Action Impact |
+| :--- | :--- | :--- | :--- |
+| **Critical Structural Threat** | Password field submitting to external host or raw IP | Critical | Incurs large score deduction ($-40$ pts); contributes to `WARN` or `BLOCK`. |
+| **Suspicious Context** | Insecure HTTP with login form or Punycode homoglyph | High | Incurs $-25$ pts deduction; triggers `WARN` when paired with sensitive inputs. |
+| **Contextual Anomaly** | High Shannon entropy, excessive subdomains ($>3$) | Medium | Incurs $-15$ pts deduction; requires additional corroborating signals to alert user. |
+| **Weak Heuristic** | URL length $> 100$ characters, uncommon TLD | Low | Incurs $-5$ pts deduction; **never** triggers an alert on its own. |
+
+---
+
+## 4. Pipeline Integration & Codebase Flow
+
+1. **Input:** Receives `PageFeatures` (extracted DOM flags) and parsed URL components from `ScanService`.
+2. **Analysis:** Executes `SecurityEngine.analyze()`, evaluating lexical, transport, and structural rules.
+3. **Output (`SecurityResult`):**
+   * `findings`: List of `Finding` objects containing ID, severity, title, and evidence.
+   * `score`: Base structural security score (0–100).
+   * `metrics`: Extracted numeric metrics.
+4. **Handoff:** Passes `SecurityResult` to `ScoreFusionEngine` to merge with external threat intelligence.

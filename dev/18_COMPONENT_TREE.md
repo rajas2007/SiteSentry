@@ -1,76 +1,96 @@
-# 18 Component Tree
+# 18. UI Component Tree
 
-## 1. Overview
-This document outlines the React component hierarchy for both the Browser Extension Popup and the Web Dashboard.
+* **Product:** Site Sentry
+* **Canonical Path:** `dev/18_COMPONENT_TREE.md`
+* **Target Clients:** Browser Extension (`apps/extension`), Web Dashboard (`apps/dashboard`)
 
-## 2. Browser Extension Popup (`apps/extension/src/popup/`)
+---
 
+## 1. Browser Extension Component Hierarchy (`apps/extension/`)
+
+### 1.1. Extension Popup (`src/popup/`)
 ```text
 PopupApp (Root)
 │
-├── Header
-│   ├── Logo
-│   └── SettingsMenuTrigger
+├── PopupHeader
+│   ├── SiteSentryBrand (Logo & Version)
+│   └── CurrentDomainBadge (eTLD+1)
 │
-├── MainScoreDisplay
-│   ├── OverallTrustGauge (Large Circular Progress)
-│   └── RecommendationText (e.g., "Safe to browse")
+├── ScoreOverviewCard
+│   ├── SecurityScoreGauge (Circular SVG 0–100)
+│   ├── DecisionBadge (allow = Emerald, warn = Amber, block = Rose, offline = Slate)
+│   └── VerdictSummaryText (e.g., "Verified Safe", "Phishing Threat Blocked")
 │
-├── ScoreBreakdownGrid
-│   ├── MiniGauge (Security)
-│   ├── MiniGauge (Privacy)
-│   └── MiniGauge (Trust)
+├── ProviderStatusCard
+│   ├── ProviderIndicator (Google Safe Browsing: Clean / Threat / Unavailable)
+│   └── ProviderIndicator (VirusTotal: Clean / Malicious Count / Unavailable)
 │
-├── ExplainableFactorsAccordion
-│   ├── FactorItem (e.g., "Valid SSL") - Green Check Icon
-│   ├── FactorItem (e.g., "3 Trackers") - Yellow Warning Icon
-│   └── FactorItem (e.g., "New Domain") - Red Cross Icon
-│       └── FactorDetail (Expanded text)
+├── FindingsAccordion
+│   ├── FindingItem (Severity Badge, Finding Title)
+│   │   └── FindingEvidenceDrawer (Observed DOM signal, external action URL)
+│   └── EmptyFindingsState ("No suspicious indicators detected")
 │
-└── Footer
-    ├── ScanStatus (e.g., "Last scanned 2m ago")
-    └── ForceRescanButton
+└── PopupFooter
+    ├── RescanButton (Triggers rescan; cache-bypass force_refresh proposed for future review)
+    └── DashboardLink ("Open Full Scan History")
 ```
 
-## 3. Web Dashboard (`apps/dashboard/src/app/(dashboard)/`)
+### 1.2. Full-Tab Warning Interstitial (`pages/warning.html`)
+```text
+WarningInterstitialPage (Root - chrome-extension:// origin)
+│
+├── WarningContainer
+│   ├── AlertIcon (Critical Red Shield)
+│   ├── Headline ("Deceptive or Malicious Site Blocked")
+│   ├── TargetDomainCard (Blocked URL, IP/Domain)
+│   │
+│   ├── ThreatEvidenceSummary
+│   │   ├── ThreatFeedIndicator (e.g., "Flagged by Google Safe Browsing as Phishing")
+│   │   └── StructuralFindingsList (e.g., "Form posts password to external untrusted host")
+│   │
+│   ├── PrimaryActionArea
+│   │   └── ReturnToSafetyButton ("Take Me Back to Safety" - Primary CTA)
+│   │
+│   └── AdvancedCollapsible
+│       ├── TechnicalTelemetryDetails (JSON payload view)
+│       └── TemporaryBypassButton ("Proceed with risk (Not Recommended)")
+```
+
+---
+
+## 2. Web Management Dashboard Component Hierarchy (`apps/dashboard/`)
 
 ```text
-DashboardLayout
+RootLayout (app/layout.tsx)
 │
-├── Sidebar
-│   ├── NavigationLinks (Overview, History, Analytics, Settings)
-│   └── UserProfileSnippet
+├── Navbar
+│   ├── BrandLogo ("Site Sentry")
+│   ├── NavigationLinks (/overview, /history, /analytics)
+│   └── HealthStatusIndicator (Backend API Connectivity)
 │
 └── MainContentArea
     │
-    ├── Topbar
-    │   ├── SearchBar (Search scan history by URL)
-    │   └── ThemeToggle (Dark/Light)
+    ├── Route: Overview (/app/page.tsx)
+    │   ├── MetricsCards (Total Scans, Threats Blocked, Clean Scans, Inconclusive)
+    │   └── RecentScansPreviewTable
     │
-    ├── (Route: /overview)
-    │   ├── StatsRow
-    │   │   ├── StatCard (Total Scans)
-    │   │   ├── StatCard (Threats Blocked)
-    │   │   └── StatCard (Avg Privacy Score)
-    │   ├── RiskTrendChart (Recharts LineChart)
-    │   └── RecentScansTable (Top 5)
+    ├── Route: Scan History (/app/history/page.tsx)
+    │   ├── HistoryFilterToolbar (Search by URL, Filter by Action: ALLOW/WARN/BLOCK)
+    │   ├── ScanHistoryTable
+    │   │   ├── TableHeader (URL, Domain, Score, Severity, Action, Date)
+    │   │   ├── TableRow (Clickable -> opens /history/[id])
+    │   │   └── EmptyHistoryState (Honest empty state, no synthetic mocks)
+    │   └── PaginationControls (Prev / Next page)
     │
-    ├── (Route: /history)
-    │   ├── HistoryDataGrid
-    │   │   ├── Filters (Date range, Risk level)
-    │   │   ├── TableHeader
-    │   │   ├── TableRow (URL, Date, Security Score, Privacy Score)
-    │   │   └── PaginationControls
+    ├── Route: Scan Detail Inspection (/app/history/[id]/page.tsx)
+    │   ├── ScanHeader (Target URL, Final Action, Timestamp)
+    │   ├── ScoreBreakdownCard (Base Score, VT Deductions, Structural Deductions)
+    │   ├── ThreatIntelDetails (GSB match details, VirusTotal vendor counts)
+    │   ├── SecurityFindingsAccordion (Itemized lexical and DOM findings)
+    │   └── PrivacyMetricsCard (Tracker domain count, cookie volume)
     │
-    └── (Route: /settings)
-        ├── AccountSettingsForm
-        └── ExtensionPreferencesForm (Strict mode, whitelist)
+    └── Route: Analytics (/app/analytics/page.tsx)
+        ├── ThreatDistributionSummary
+        ├── ProviderAvailabilityMetrics (GSB & VT uptime/failure rates)
+        └── FrequentThreatDomainsList
 ```
-
-## 4. Shared UI Components (`packages/ui/` or `components/ui/`)
-Built primarily using `shadcn/ui`.
-- `Card`, `CardHeader`, `CardTitle`, `CardContent`
-- `Accordion`, `AccordionItem`, `AccordionTrigger`, `AccordionContent`
-- `ProgressGauge` (Custom SVG component wrapping Radix primitives)
-- `Badge` (For risk labels: Safe/Warning/Danger)
-- `Button`, `Input`, `Select`

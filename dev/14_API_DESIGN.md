@@ -1,94 +1,199 @@
-# 14 API Design
+# 14. API Design & Endpoint Contracts
 
-## 1. Overview
-The TrustLens AI Backend exposes a RESTful API built with FastAPI. It uses JSON for serialization and JWT (JSON Web Tokens) for authentication.
+* **Product:** Site Sentry
+* **API Style:** REST over HTTPS (FastAPI)
+* **Canonical Path:** `dev/14_API_DESIGN.md`
+* **Implementation:** `services/api/src/api/analyze.py`, `services/api/src/api/analytics.py`
+* **Pydantic Schemas:** `services/api/src/schemas/analysis.py`, `services/api/src/schemas/scan.py`
 
-## 2. Base URL
-`https://api.trustlens.ai/v1`
+---
 
-## 3. Authentication
-All endpoints except `/auth/*` and public health checks require a Bearer token.
-`Authorization: Bearer <token>`
+## 1. Overview & Authoritative Base URL
 
-## 4. Core Endpoints
+The Site Sentry backend exposes a RESTful API built on FastAPI with Pydantic v2 validation.
 
-### 4.1. Scan API
-**`POST /scan/analyze`**
-Triggers a real-time analysis of a URL.
+* **Base URL:** `/api/v1`
+* **OpenAPI Documentation:** `/docs` (Swagger UI) and `/openapi.json`
+* **Health Check:** `GET /health`
 
-**Request Body:**
+> [!IMPORTANT]
+> **Endpoint Reconciliation Note:**
+> Historical design drafts referenced `/scan/analyze` or `/scan`.
+> As verified directly against `services/api/src/api/analyze.py`, the authoritative canonical scan endpoint is **`POST /api/v1/analyze`**.
+
+---
+
+## 2. Core API Endpoints
+
+### 2.1. Page Scan & Analysis: `POST /api/v1/analyze`
+Executes real-time, deterministic website analysis. Consumed by the browser extension during page navigation.
+
+#### Request Schema: `PageAnalysisRequest` (`services/api/src/schemas/analysis.py`)
 ```json
 {
   "url": "https://example-phish.com/login",
-  "dom_context": {
-    "has_password_field": true,
-    "hidden_iframes_count": 1,
-    "third_party_scripts": ["https://evil-tracker.com/track.js"]
+  "title": "Example Phish Login",
+  "hostname": "example-phish.com",
+  "features": {
+    "hasPasswordField": true,
+    "hasLoginForm": true,
+    "formCount": 1,
+    "externalLinkCount": 8,
+    "iframeCount": 0,
+    "scriptCount": 3,
+    "imageCount": 4,
+    "suspiciousKeywords": ["verify", "banking", "secure"],
+    "pageTextLength": 450,
+    "hasHttps": false,
+    "hostnameLength": 18,
+    "subdomainCount": 1
   },
-  "force_refresh": false
+  "privacy_policy_text": null,
+  "third_party_cookie_count": 2
 }
 ```
 
-**Response (200 OK):**
+* **Constraints:**
+  * `url`: Valid `HttpUrl` string (max length 2048).
+  * `features`: `PageFeatures` model with camelCase DOM properties extracted by the content script.
+  * Sensitive URL query tokens (`token`, `auth`, `password`) should be sanitized prior to transmission per [31. Data Privacy and Retention](./31_DATA_PRIVACY_AND_RETENTION.md).
+  * `force_refresh`: Unsupported in active schema; cache-bypass functionality is a proposed future capability under review.
+
+#### Response Schema: `PageAnalysisResponse` (`services/api/src/schemas/analysis.py`)
 ```json
 {
-  "scan_id": "uuid-1234",
-  "status": "completed",
-  "scores": {
-    "security": 20,
-    "privacy": 45,
-    "trust": 15
+  "analysis_id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+  "score": 10,
+  "severity": "high",
+  "confidence": 0.95,
+  "threat_category": "phishing",
+  "recommendations": [
+    "Leave site immediately."
+  ],
+  "factors": [
+    "Domain is actively blacklisted by: Google Safe Browsing",
+    "Missing HTTPS on sensitive page"
+  ],
+  "decision": {
+    "action": "block",
+    "severity": "high",
+    "ui": {
+      "color": "rose"
+    }
   },
-  "recommendation": "CRITICAL RISK: Do not enter credentials. Highly likely phishing.",
-  "explanations": {
-    "security": [
-      "Domain registered 2 days ago.",
-      "Contains password fields but no valid SSL.",
-      "Flagged by 2 security vendors."
-    ],
-    "privacy": [
-      "Detected 5 tracking scripts."
+  "threat_intelligence": {
+    "sources": [
+      {
+        "provider": "Google Safe Browsing",
+        "status": "detected",
+        "categories": ["Phishing"],
+        "summary": "Flagged as dangerous"
+      },
+      {
+        "provider": "VirusTotal",
+        "status": "clean",
+        "categories": [],
+        "summary": "No security vendors flagged this domain"
+      }
     ]
-  },
-  "is_partial": false
+  }
 }
 ```
-*Note: If `is_partial` is true, the LLM policy analysis is still running in the background.*
 
-### 4.2. Dashboard Analytics APIs
-**`GET /history`**
-Retrieves the user's scan history.
-- **Query Params:** `limit=50`, `offset=0`, `risk_level=high`
+* **Field Specifications:**
+  * `analysis_id` (`str`): Unique UUIDv4 string identifier for the scan.
+  * `score` (`int`): Normalized fused integer score ($0 - 100$).
+  * `severity` (`Literal["low", "medium", "high"]`): Risk severity.
+  * `confidence` (`float`): Assessment confidence metric ($0.0 - 1.0$).
+  * `threat_category` (`str`): Categorization (`"phishing"`, `"malware"`, `"credential_theft"`, `"elevated_risk"`, `"inconclusive"`, `"safe"`).
+  * `decision.action` (`Literal["allow", "warn", "block"]`): Operational directive for client extension.
+  * `decision.ui.color` (`Literal["emerald", "amber", "rose", "slate"]`): Client UI presentation color.
+  * `threat_intelligence.sources`: Provider status list (`status: Literal["clean", "detected", "unavailable"]`).
 
-**`GET /analytics/summary`**
-Retrieves aggregated stats for the dashboard.
-- **Response:**
+---
+
+### 2.2. Scan History: `GET /api/v1/history`
+Returns paginated recent scans recorded in the database. Consumed by the Next.js Dashboard.
+
+* **Query Parameters:**
+  * `limit` (int, default: 20, max: 100): Page size.
+  * `offset` (int, default: 0): Pagination offset.
+  * `domain` (optional string): Filter scans by domain name.
+* **Response Schema: `ScanHistoryResponse` (`services/api/src/schemas/scan.py`)**
 ```json
 {
-  "total_scans": 1450,
-  "threats_blocked": 12,
-  "trackers_blocked": 450,
-  "average_trust_score": 82
+  "items": [
+    {
+      "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+      "url": "https://example-phish.com/login",
+      "domain": "example-phish.com",
+      "score": 10,
+      "severity": "high",
+      "verdict": "block",
+      "threat_category": "phishing",
+      "scanned_at": "2026-10-19T18:00:00Z"
+    }
+  ],
+  "total": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
 
-### 4.3. User & Settings
-**`GET /users/me`** - Get current user profile.
-**`PUT /users/me/settings`** - Update settings (strict mode, alerts).
+---
 
-## 5. WebSockets (Future Scope)
-For truly real-time streaming of LLM privacy policy summarization or long-running OSINT scans, a WebSocket endpoint can be implemented:
-**`WS /scan/stream`**
+### 2.3. Scan Detail Inspection: `GET /api/v1/history/{analysis_id}`
+Retrieves full factors, recommendations, and provider responses for a specific scan.
 
-## 6. Error Handling
-Standard HTTP status codes are used. Error responses follow RFC 7807 (Problem Details).
+* **Path Parameter:** `analysis_id` (`str`): UUID string.
+* **Response Schema: `DetailedScanHistoryResponse` (`services/api/src/schemas/scan.py`)**
+  Inherits all fields from `ScanHistoryItem`, adding:
+  * `confidence` (`float`)
+  * `recommendations` (`list[str]`)
+  * `factors` (`list[str]`)
+  * `decision` (`dict[str, Any]`)
+  * `threat_intelligence` (`dict[str, Any] | None`)
+
+---
+
+### 2.4. Analytics Overview: `GET /api/v1/analytics/overview`
+Provides real-time aggregate statistics for the dashboard metrics cards.
+
+* **Response Schema: `AnalyticsOverview` (`services/api/src/schemas/analytics.py`)**
 ```json
 {
-  "detail": "Rate limit exceeded",
-  "error_code": "RATE_LIMIT_EXCEEDED",
-  "retry_after": 60
+  "total_scans": 12480,
+  "threats_blocked": 342,
+  "suspicious_warned": 819,
+  "clean_scans": 11319,
+  "inconclusive_scans": 74,
+  "provider_availability": {
+    "google_safe_browsing": 0.998,
+    "virus_total": 0.985
+  }
 }
 ```
 
-## 7. OpenAPI Specification
-FastAPI automatically generates a Swagger UI and OpenAPI JSON schema at `/docs` and `/openapi.json`. This schema is used to automatically generate TypeScript types for the extension and dashboard using `openapi-typescript-codegen`.
+---
+
+## 3. Implemented vs. Proposed Endpoints
+
+* **Implemented:**
+  * `POST /api/v1/analyze`
+  * `GET /api/v1/history`
+  * `GET /api/v1/history/{analysis_id}`
+  * `GET /api/v1/analytics/overview`
+  * `GET /health`
+* **Proposed / Future Scope (Not Implemented):**
+  * `DELETE /api/v1/history`: User-requested scan history deletion per [31. Data Privacy and Retention](./31_DATA_PRIVACY_AND_RETENTION.md).
+  * `WS /scan/stream`: WebSocket streaming for async scanning.
+
+---
+
+## 4. Error Handling & Status Codes
+
+* **`400 Bad Request`:** Invalid URL structure or malformed parameters.
+* **`404 Not Found`:** Requested scan record does not exist in history.
+* **`422 Unprocessable Entity`:** Payload schema validation failure (auto-handled by Pydantic).
+* **`429 Too Many Requests`:** Client exceeded rate limits.
+* **`500 Internal Server Error`:** Unhandled exception; client enters operational offline state.

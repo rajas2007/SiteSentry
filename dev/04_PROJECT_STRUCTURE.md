@@ -1,57 +1,78 @@
-# 04 Project Structure
+# 04. Project Structure
 
-## 1. Monorepo Organization
-The TrustLens AI Platform utilizes a monorepo approach to coordinate the development of various client applications and the heavily modularized backend engines.
+* **Product:** Site Sentry
+* **Repository Root:** Repository Base Directory (`./`)
+* **Canonical Path:** `dev/04_PROJECT_STRUCTURE.md`
+
+---
+
+## 1. Actual Repository Monorepo Structure
+
+Site Sentry is organized as a unified monorepo housing the browser extension, the management dashboard, and the FastAPI backend service.
 
 ```text
-trustlens-ai/
-├── apps/                           # Client applications
-│   ├── dashboard/                  # Next.js web dashboard
-│   ├── extension/                  # Browser extension (Data Collection Engine client)
-│   └── mobile/                     # React Native app (Future)
-│
-├── services/                       # Backend services and APIs
-│   └── api/                        # FastAPI main gateway
+SiteSentry/
+├── apps/                                  # Client applications
+│   ├── dashboard/                         # Next.js 14 web dashboard (React 18, TailwindCSS)
+│   │   ├── src/
+│   │   │   ├── app/                       # Next.js App Router (pages & layouts)
+│   │   │   ├── components/                # UI components (ScanHistory, Metrics, Navbar)
+│   │   │   └── lib/                       # API client & data fetchers
+│   │   ├── package.json
+│   │   └── tailwind.config.js
+│   │
+│   └── extension/                         # Chrome Extension (Manifest V3)
 │       ├── src/
-│       │   ├── core/               # Config, DB, Plugin Manager
-│       │   ├── api/                # REST endpoints
-│       │   ├── models/             # DB schema models
-│       │   └── pipeline/           # The Intelligence Pipeline
-│       │       ├── feature_extraction/
-│       │       ├── score_fusion/
-│       │       ├── trust/
-│       │       ├── explainability/
-│       │       └── decision/
-│       │
-│       ├── plugins/                # Pluggable Sub-Engines
-│       │   ├── security/           # Security Engine
-│       │   ├── privacy/            # Privacy Intelligence Engine
-│       │   ├── threat_intel/       # Threat Intelligence Engine
-│       │   ├── web3/               # Web3 Engine (Crypto)
-│       │   ├── rule/               # Rule Engine
-│       │   └── machine_learning/   # Machine Learning Engine
-│       │
-│       ├── knowledge_base/         # Internal KB interface
-│       └── community/              # Community Intelligence modules
+│       │   ├── background/                # Background service worker (state, alarms)
+│       │   ├── content/                   # Content scripts (structural DOM extraction)
+│       │   ├── popup/                     # Extension popup UI (React / HTML / Tailwind)
+│       │   └── pages/                     # Full-tab warning interstitial (warning.html)
+│       └── manifest.json
 │
-├── packages/                       # Shared code
-│   ├── shared-types/               # DTOs and Schema contracts
-│   └── ui/                         # UI Components
+├── services/                              # Backend services
+│   └── api/                               # FastAPI Modular Monolith
+│       ├── src/
+│       │   ├── api/                       # REST endpoint routers (analyze.py, analytics.py)
+│       │   ├── config.py                  # Pydantic settings & environment configuration
+│       │   ├── database.py                # SQLAlchemy session & connection management
+│       │   ├── main.py                    # FastAPI app initialization, middleware, routes
+│       │   ├── models/                    # SQLAlchemy ORM models (ScanHistory, DomainReputation)
+│       │   ├── schemas/                   # Pydantic schemas (PageAnalysisRequest, Response)
+│       │   ├── services/                  # ScanService orchestration, cache service
+│       │   └── engines/                   # Modular analysis engines (In-Process)
+│       │       ├── security/              # SecurityEngine (structural URL & DOM heuristics)
+│       │       ├── threat_intelligence/   # ThreatIntelligenceEngine (GSB & VirusTotal)
+│       │       ├── score_fusion/          # ScoreFusionEngine (proportional deductions)
+│       │       ├── decision/              # DecisionEngine (allow, warn, block actions)
+│       │       ├── explainability/        # ExplainabilityEngine (evidence generation)
+│       │       ├── privacy/               # PrivacyIntelligenceEngine (trackers & cookies)
+│       │       ├── rules/                 # RuleEngine (deterministic YAML rule sets)
+│       │       ├── trust/                 # TrustEngine (historical domain reputation)
+│       │       ├── machine_learning/      # Schemas, dataset utilities, MODEL_CONTRACT.md (offline)
+│       │       └── web3/                  # Web3Engine (deferred prototype)
+│       ├── tests/                         # Pytest test suite (unit & integration tests)
+│       ├── Dockerfile
+│       └── pyproject.toml / requirements.txt
 │
-├── dev/                            # Architecture Source of Truth (THIS FOLDER)
-│   ├── decisions/
-│   ├── diagrams/
-│   ├── research/
-│   └── assets/
+├── dev/                                   # Architecture & Development Documentation
+│   ├── decisions/                         # Architecture Decision Records (ADR-001 to ADR-005)
+│   ├── 00_PROJECT_OVERVIEW.md
+│   ├── 27_SECURITY_DECISION_CONTRACT.md
+│   ├── 28_PROVIDER_RESILIENCE_CONTRACT.md
+│   ├── 29_DETECTION_EVALUATION_PLAN.md
+│   ├── 30_THREAT_MODEL.md
+│   ├── 31_DATA_PRIVACY_AND_RETENTION.md
+│   └── ...                                # Full specification documents (00 through 31)
 │
-└── infrastructure/                 # Deployments (Docker, K8s, Terraform)
+├── docker-compose.yml                     # Local composition (API, PostgreSQL, Redis)
+└── README.md
 ```
 
-## 2. Rationale & Architecture Alignment
-- **`services/api/src/pipeline/`:** Contains the structural orchestration of the Analysis Pipeline (Feature Extraction -> Fusion -> Trust -> Explainability -> Decision).
-- **`services/api/plugins/`:** Follows the **Plugin Architecture**. By separating the specialized sub-engines into plugins, the platform can easily dynamically load or bypass analysis (e.g., ignoring Web3 checks on non-crypto sites).
-- **Separation of Rule & ML:** The `rule` and `machine_learning` directories emphasize the split between deterministic logic and probabilistic inference.
+---
 
-## 3. Related Documents
-- [System Architecture](./03_SYSTEM_ARCHITECTURE.md)
-- [Plugin Architecture (Conceptual)](./03_SYSTEM_ARCHITECTURE.md#4-plugin-architecture)
+## 2. Structural Conventions & Boundaries
+
+1. **`services/api/src/engines/`:** Contains all analytical engines. Active engines execute in-process within `ScanService` without network hops per [ADR-003](./decisions/ADR-003-modular-monolith-architecture.md).
+2. **`services/api/src/engines/machine_learning/`:** Preserved strictly as an offline utility repository (schemas, feature extractors, dataset splitters, and `MODEL_CONTRACT.md`). It is not invoked during live scans per [ADR-002](./decisions/ADR-002-defer-ml-training.md).
+3. **`apps/extension/`:** Encapsulates Manifest V3 client logic. Content scripts extract only lightweight boolean flags and metrics, passing them to the background worker without modifying the page DOM per [ADR-005](./decisions/ADR-005-browser-warning-over-dom-tampering.md).
+4. **`dev/decisions/`:** Formal Architecture Decision Records providing immutable historical context for all architectural choices.

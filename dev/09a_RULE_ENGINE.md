@@ -1,35 +1,73 @@
-# 09a Rule Engine
+# 09a. Rule Engine
 
-## 1. Overview
-The Rule Engine is the deterministic counterpart to the Machine Learning Engine. It executes hardcoded logic, heuristics, and zero-tolerance policies.
+* **Product:** Site Sentry
+* **Status:** Active & Prioritized (Core Deterministic Foundation)
+* **Canonical Path:** `dev/09a_RULE_ENGINE.md`
+* **Related ADR:** [ADR-001: Prioritizing Deterministic Security Rules Over ML](./decisions/ADR-001-deterministic-security-priority.md)
+* **Authoritative Contracts:**
+  * [27. Security Decision Contract](./27_SECURITY_DECISION_CONTRACT.md)
+  * [16. Score Fusion Engine](./16_SCORING_ENGINE.md)
 
-By separating the Rule Engine from the ML Engine, we ensure that obvious, deterministic threats (like a domain explicitly blacklisted by Google Safe Browsing) are not subject to the probabilistic uncertainties of a machine learning model.
+---
 
-## 2. Responsibilities
-- Evaluates categorized findings from the Sub-Engines (Security, Privacy Intelligence, Threat Intel, Web3).
-- Applies strict Boolean logic to generate immediate score modifiers.
-- Outputs definitive findings to the **Score Fusion Engine**.
+## 1. Overview & Architectural Role
 
-## 3. Examples of Deterministic Rules
-- **Rule `SEC-VT-01`**: IF `virus_total_positives >= 3` THEN `security_score = 0`. (Zero Tolerance)
-- **Rule `PRIV-TRK-05`**: IF `has_supercookie == true` THEN `privacy_modifier = -20`.
-- **Rule `WEB3-ADDR-01`**: IF `contract_in_knowledge_base == true` AND `kb_status == "drainer"` THEN `web3_score = 0`.
+The Rule Engine (`services/api/src/engines/rules/`) provides the deterministic backbone of Site Sentry. It evaluates observable URL, hostname, and DOM signals against concrete security rules to produce unambiguous findings, severity classifications, and score deductions.
 
-## 4. Scoring Contribution
-The Rule Engine outputs a list of "Overrides" and "Modifiers".
-- **Overrides:** Immediately force a score to a specific value (usually 0), bypassing any ML predictions.
-- **Modifiers:** Add or subtract points from a baseline score.
+Because machine learning model training is deferred (per [ADR-002](./decisions/ADR-002-defer-ml-training.md)), the Rule Engine—working alongside the `SecurityEngine` and `ThreatIntelligenceEngine`—is the primary mechanism for detecting threats.
 
-## 5. Advantages & Limitations
-### Advantages
-- **100% Explainable:** Deterministic rules are trivial to explain to a user.
-- **Instant Execution:** `O(1)` or `O(N)` time complexity. Extremely fast.
-- **Absolute Control:** Allows engineers to manually patch zero-day vulnerabilities by pushing a new rule to the Knowledge Base without retraining an ML model.
+---
 
-### Limitations
-- Cannot detect novel, previously unseen combinations of features that the ML Engine might catch.
-- Requires manual maintenance to prevent rules from becoming stale.
+## 2. Evidence Hierarchy & Rule Taxonomy
 
-## 6. Related Engines
-- [Machine Learning Engine](./09_AI_ENGINE.md)
-- [Score Fusion Engine](./16_SCORING_ENGINE.md)
+The Rule Engine distinguishes between three distinct classes of evidence:
+
+1. **Authoritative Threat Findings:**
+   * Signals from verified threat feeds (e.g., Google Safe Browsing match, or VirusTotal $\ge 3$ detections entering `blacklists_triggered`).
+   * Semantics: Confirmed malicious. Triggers hard overrides clamping score $\le 10.0$ and enforcing an `"action": "block"`.
+2. **Strong Structural Security Rules:**
+   * Highly discriminatory technical signals (e.g., `insecure_login` [$-40$ pts], `no_https` [$-30$ pts], `suspicious_login` [$-20$ pts]).
+   * Semantics: Critical/High severity findings. If cumulative deductions bring the score below 50, the site receives `"action": "block"` with threat category `"credential_theft"`.
+3. **Weak Heuristic Indicators:**
+   * Contextual characteristics that correlate with phishing but occur on benign sites (e.g., `long_hostname` [$-10$ pts], `multiple_subdomains` [$-10$ pts], `suspicious_keywords` [$-15$ pts]).
+   * Semantics: Low/Medium severity. Weak heuristics contribute to a `"warn"` action only when combined with other indicators; they can **never** trigger a `"block"` action on their own.
+
+---
+
+## 3. Reconciliation of VirusTotal Scoring Policy
+
+> [!IMPORTANT]
+> **Resolution of Historical VirusTotal Policy Contradiction:**
+> An older draft of this document suggested a zero-tolerance rule: `IF virus_total_positives >= 3 THEN security_score = 0`.
+>
+> **Authoritative Codebase Contract:**
+> As verified in `services/api/src/engines/threat_intelligence/engine.py` and `services/api/src/engines/score_fusion/engine.py`:
+> 1. **Detections $\ge 3$:** Added to `blacklists_triggered`, triggering a hard clamp: `score = min(score, 10)` and setting `has_confirmed_threat = True`, which leads to an `"action": "block"`.
+> 2. **Detections $1 - 2$:** Apply a proportional deduction `penalty = min(50, total_vendor_flags * 10)` ($-10$ or $-20$ points) and set `has_confirmed_threat = True`, which leads to an `"action": "warn"`. These low detections represent vendor threat signals rather than independently confirmed threats.
+>
+> *(Note on implementation terminology: In the current codebase, the boolean flag `has_confirmed_threat` is set to `True` whenever `total_vendor_flags > 0`, including 1–2 vendor detections. However, 1–2 detections represent weak vendor signals rather than confirmed malicious infrastructure; they trigger a cautionary `"action": "warn"` rather than a `"block"`. The naming of `has_confirmed_threat` for low vendor detections is an implementation detail scheduled for future review).*
+>
+> The older "zeroing" rule is officially marked as **superseded** by this two-tiered clamp vs. capped deduction model.
+
+---
+
+## 4. Signal Deductions in Implementation
+
+The following deductions reflect the active implementation in `services/api/src/engines/score_fusion/engine.py`:
+
+| Signal ID | Observable Condition | Category | Score Deduction |
+| :--- | :--- | :--- | :--- |
+| `insecure_login` | Password field submitted over unencrypted HTTP | Credential Risk | $-40.0$ |
+| `no_https` | Unencrypted HTTP transport | Transport Security | $-30.0$ |
+| `suspicious_login` | External form action or suspicious credential target | Credential Risk | $-20.0$ |
+| `suspicious_keywords`| High density of sensitive/phishing keywords | Lexical Anomaly | $-15.0$ |
+| `long_hostname` | Hostname length exceeds threshold | Hostname Anomaly | $-10.0$ |
+| `multiple_subdomains`| Subdomain count exceeds threshold | Hostname Anomaly | $-10.0$ |
+
+---
+
+## 5. Strengths & Governance
+
+* **100% Explainable:** Each rule corresponds to an explicit finding identifier, user-facing title, and technical evidence dictionary.
+* **Sub-Millisecond Execution:** Rules execute as compiled in-memory Boolean logic in Python, taking $< 2\text{ms}$.
+* **No Model Drift:** Unlike statistical models, deterministic rules do not suffer from distribution shift or silent degradation over time.

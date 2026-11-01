@@ -1,45 +1,76 @@
-# 22 Deployment & Infrastructure
+# 22. Deployment & Infrastructure Baseline
 
-## 1. Overview
-TrustLens AI uses containerization and Infrastructure as Code (IaC) to ensure deployments are repeatable, scalable, and environment-agnostic.
+* **Product:** Site Sentry
+* **Infrastructure Style:** Modular Monolith Container Stack (Docker Compose / Managed PaaS)
+* **Canonical Path:** `dev/22_DEPLOYMENT.md`
+* **Related ADR:** [ADR-003: Retaining FastAPI Modular Monolith Architecture](./decisions/ADR-003-modular-monolith-architecture.md)
 
-## 2. Environment Architecture
-- **Development:** Local Docker Compose stack.
-- **Staging:** Hosted environment mimicking production (connected to staging DB and test API keys).
-- **Production:** Scalable cloud environment.
+---
 
-## 3. Local Development
-Developers can spin up the entire stack using Docker Compose:
+## 1. Overview & Operational Philosophy
+
+Per project architectural decisions (Section 3.18 and ADR-003), Site Sentry maintains a lean, highly reliable operational baseline. The backend is packaged as a **modular monolith** with managed PostgreSQL and Redis storage.
+
+We explicitly avoid introducing Kubernetes clusters, message queues (Kafka/RabbitMQ), or distributed microservices during current phases. Horizontal scaling is achieved through stateless FastAPI container replicas behind a standard reverse proxy.
+
+---
+
+## 2. Local Development Stack (`docker-compose.yml`)
+
+The complete development environment can be launched with a single command from the repository root:
+
 ```bash
 docker-compose up -d
 ```
-This launches:
-- PostgreSQL (Port 5432)
-- Redis (Port 6379)
-- FastAPI Backend (Port 8000)
-- Next.js Dashboard (Port 3000)
 
-## 4. Production Hosting Strategy (MVP)
-To minimize DevOps overhead during the startup phase, we utilize managed PaaS providers:
+### Services Launched:
+* **FastAPI Backend (`services/api/`):** Port `8000` (auto-reloading, OpenAPI docs at `/docs`).
+* **PostgreSQL Database:** Port `5432` (stores `ScanHistory` and `DomainReputation`).
+* **Redis Cache:** Port `6379` (scan result caching and rate limiting).
+* **Next.js Dashboard (`apps/dashboard/`):** Port `3000` (connected to backend at `http://localhost:8000`).
 
-### 4.1. Frontend (Dashboard)
-- **Provider:** Vercel
-- **Deployment:** Automatic deployments from the `main` branch. Vercel handles global CDN, Edge functions, and Next.js SSR seamlessly.
+---
 
-### 4.2. Backend (API & DB)
-- **Provider:** Railway or Render
-- **Deployment:** Dockerfile deployments linked to GitHub.
-- **Database:** Managed PostgreSQL instance (automated backups, point-in-time recovery).
-- **Cache:** Managed Redis instance.
+## 3. Production Deployment Architecture
 
-## 5. Production Hosting Strategy (Scale)
-As user volume grows, the backend will migrate to AWS or GCP using Kubernetes (EKS/GKE).
-- **Terraform:** Used to provision VPCs, Load Balancers, RDS, and ElastiCache.
-- **Horizontal Pod Autoscaling (HPA):** Scale FastAPI pods based on CPU utilization and Redis queue length.
+```
+┌────────────────────────────────────────────────────────┐
+│ Cloudflare / Reverse Proxy (SSL, DDoS Protection, CDN) │
+└───────────────────────────┬────────────────────────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+┌───────────────────────────┐ ┌───────────────────────────┐
+│ Next.js Dashboard Client   │ │ FastAPI Monolith Replicas │
+│ (Vercel / Node.js Engine) │ │ (Docker Containers)       │
+└───────────────────────────┘ └─────────────┬─────────────┘
+                                            │
+                             ┌──────────────┴──────────────┐
+                             ▼                             ▼
+               ┌───────────────────────────┐ ┌───────────────────────────┐
+               │ Managed PostgreSQL 15+    │ │ Managed Redis Cluster     │
+               │ (Persistent Scan History) │ │ (Cache & Rate Limits)     │
+               └───────────────────────────┘ └───────────────────────────┘
+```
 
-## 6. Extension Publishing
-- **Chrome Web Store:** Automated zipping and uploading via GitHub Actions (using `chrome-webstore-upload-cli`). Manual review usually takes 24-48 hours.
-- **Edge Add-ons:** Similar automated pipeline.
+### 3.1. Frontend Dashboard Deployment
+* **Platform:** Vercel or standalone Node.js Docker container.
+* **Environment Configuration:** Configured with `NEXT_PUBLIC_API_URL` pointing to the FastAPI backend domain.
 
-## 7. Secrets Management
-- All secrets (API keys for VirusTotal, OpenAI, Database URLs) are stored in GitHub Secrets for CI/CD and in the PaaS environment variables (Vercel/Railway) for runtime. Never hardcode secrets.
+### 3.2. Backend Monolith Deployment
+* **Platform:** Railway, Render, or cloud container services (AWS ECS / GCP Cloud Run).
+* **Scaling:** Horizontal autoscaling based on HTTP request concurrency and CPU utilization.
+* **Environment Variables:**
+  * `DATABASE_URL`: PostgreSQL connection string.
+  * `REDIS_URL`: Redis connection string.
+  * `GOOGLE_SAFE_BROWSING_API_KEY`: External GSB API key.
+  * `VIRUSTOTAL_API_KEY`: External VirusTotal API key.
+
+---
+
+## 4. Browser Extension Packaging
+
+* **Build Tool:** Vite with multi-target configuration (`vite build`).
+* **Output:** Standalone Manifest V3 distribution directory in `apps/extension/dist/`.
+* **Testing:** Load as an unpacked extension in Developer Mode on Chrome, Edge, or Brave.
+* **Store Publishing:** Zipped bundle uploaded to the Chrome Web Store and Microsoft Edge Add-ons catalogs.

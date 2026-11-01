@@ -1,31 +1,38 @@
-# 26 Community Intelligence Engine
+# 26. Community Intelligence (Deferred)
 
-## 1. Overview
-The Community Intelligence Engine harnesses the power of the TrustLens AI user base. Machine Learning and OSINT feeds are powerful, but they often lag behind zero-day threats. A human user can often spot a novel scam instantly. This engine formalizes crowdsourced intelligence into a reliable data stream.
+* **Product:** Site Sentry
+* **Status:** Deferred per ADR-004 (Section 3.15)
+* **Canonical Path:** `dev/26_COMMUNITY_INTELLIGENCE.md`
+* **Related ADR:** [ADR-004: Deferring Web3 Auditing and Community Intelligence Systems](./decisions/ADR-004-defer-web3-community-intelligence.md)
 
-## 2. Core Features
+---
 
-### 2.1. Community Reporting
-Users can actively flag sites via the Browser Extension or Web Dashboard.
-- **Report False Negative:** "This site is green, but it is actually a scam."
-- **Report False Positive:** "This site is red, but I am the owner and it is safe."
+## 1. Overview & Deferred Status
 
-### 2.2. Threat Verification & Consensus
-One report does not change a site's score (to prevent abuse). The engine requires consensus.
-- If multiple users with high reputation flag a site within a short time window, the domain is immediately placed on the **Community Blacklist**.
-- This blacklist is queried by the **Threat Intelligence Engine** during the Analysis Pipeline.
+The original TrustLens AI architecture proposed a decentralized **Community Intelligence Engine** that relied on crowdsourced user voting, reputation staking ("Cyber Hygiene Scores"), and consensus algorithms to automatically flag or unblock websites.
 
-### 2.3. The Reputation System (Cyber Hygiene Score)
-Not all users' reports are weighted equally. 
-- Every user has a hidden **Cyber Hygiene Score**.
-- If a user reports a site as a False Negative, and 24 hours later VirusTotal confirms it is malware, the user's reputation increases.
-- If a user constantly reports legitimate sites (like Google.com) as scams, their reputation drops to zero, and their future reports are ignored by the consensus algorithm.
-- *Gamification (Future Scope):* High reputation users might receive badges or premium features for their contributions to community safety.
+Under Site Sentry's revised architecture, **the full crowdsourced community intelligence and reputation system is officially deferred**:
+* Unverified community votes or reports are **strictly excluded** from the real-time scanning path (`ScanService.analyze_page()`).
+* Community reports cannot alter a website's score, override authoritative threat intelligence feeds, or trigger automated domain blocks.
+* No consensus algorithms, token staking, or gamified user scoring systems will be implemented.
 
-## 3. Integration with the Platform
-- **Input:** Receives reports directly from the API gateway (submitted by the extension).
-- **Processing:** Asynchronously evaluates the consensus and updates the user's Cyber Hygiene Score.
-- **Output:** If consensus is reached, it pushes a new threat signature to the **Knowledge Base** and adds the domain to the internal Community Blacklist.
+---
 
-## 4. Data Moat Strategy
-The Community Intelligence Engine is the ultimate defensive moat for the TrustLens AI Platform. While competitors can easily access the same OSINT APIs (VirusTotal, SafeBrowsing), they cannot replicate a proprietary database of zero-day threats identified by thousands of active, reputable users.
+## 2. Vulnerabilities of Crowdsourced Reputation
+
+The decision to defer community scoring is based on fundamental security and game-theoretic vulnerabilities:
+1. **Sybil Attacks:** Malicious actors can spin up thousands of synthetic identities to artificially downvote competitor websites or upvote newly deployed phishing domains.
+2. **Coordinated Extortion & Brigading:** Open voting systems are susceptible to organized harassment campaigns targeting specific commercial or political sites.
+3. **Poisoning of Automated Defenses:** Feeding unverified crowdsourced reports directly into automated blocking rules creates severe false positives on critical business portals.
+4. **Moderation Overhead:** Validating crowdsourced claims requires dedicated human security operations teams, which is unsustainable at the current stage.
+
+---
+
+## 3. Retained Scope: Passive Feedback for Security Analysts
+
+While automated crowdsourced scoring is deferred, the concept of **user-submitted feedback** is preserved strictly as an asynchronous telemetry channel:
+* **False Positive Feedback:** Users can submit a URL if they believe a legitimate site was incorrectly flagged as suspicious.
+* **Triage Pipeline:** Submissions are queued into an administrative review log for inspection by human security analysts.
+* **Zero Automatic Impact:** Feedback submissions do **not** dynamically change scan scores or database reputation records until verified by an authoritative rule update or threat intelligence feed refresh.
+
+Conditions for revisiting community features are detailed in [ADR-004](./decisions/ADR-004-defer-web3-community-intelligence.md).
