@@ -7,18 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.redis import RedisCache, get_cache
 from src.engines.decision.engine import DecisionEngine
+from src.engines.privacy.engine import PrivacyIntelligenceEngine
+from src.engines.score_fusion.engine import ScoreFusionEngine
 from src.engines.security.engine import SecurityEngine
 from src.engines.threat_intelligence.engine import ThreatIntelligenceEngine
 from src.engines.threat_intelligence.schemas import UnifiedThreatObject
 from src.models.domain_reputation import DomainReputation
 from src.models.scan import ScanHistory
 from src.schemas.analysis import PageAnalysisRequest, PageAnalysisResponse
+from src.utils.url import prepare_url_for_persistence
 
 logger = logging.getLogger(__name__)
-
-
-from src.engines.privacy.engine import PrivacyIntelligenceEngine
-from src.engines.score_fusion.engine import ScoreFusionEngine
 
 
 class ScanService:
@@ -46,10 +45,20 @@ class ScanService:
         url_str = str(request.url)
 
         # 1. Check Redis cache
-        cached = await self.cache.get_analysis(url_str)
+        cached = await self.cache.get_analysis(request)
         if cached:
-            logger.info(f"Cache hit for URL: {url_str}")
-            return PageAnalysisResponse(**cached)
+            logger.info(
+                "Cache hit for analysis domain=%s",
+                request.hostname,
+            )
+            # Fresh analysis_id requirement: never return stale analysis_id on cache hit.
+            # Do not mutate the cached dictionary in place.
+            cached_copy = dict(cached)
+            cached_copy["analysis_id"] = str(uuid.uuid4())
+            response = PageAnalysisResponse(**cached_copy)
+            if db is not None:
+                await self._persist_scan(db, request, response, threat_intel=None)
+            return response
 
         # 2. Query external Threat Intelligence Feeds (Google Safe Browsing & VirusTotal)
         threat_intel = await self.threat_intel_engine.lookup(
@@ -110,11 +119,11 @@ class ScanService:
             threat_intelligence=ti_response,
         )
 
-        # 4. Store in Redis cache only if data completeness is complete
+        # 7. Store in Redis cache only if data completeness is complete
         if fusion_result.get("data_completeness", True):
-            await self.cache.set_analysis(url_str, response.model_dump(mode="json"))
+            await self.cache.set_analysis(request, response.model_dump(mode="json"))
 
-        # 5. Asynchronously persist to PostgreSQL if DB session is provided
+        # 8. Asynchronously persist to PostgreSQL if DB session is provided
         if db is not None:
             await self._persist_scan(db, request, response, threat_intel=threat_intel)
 
@@ -128,12 +137,27 @@ class ScanService:
         threat_intel: UnifiedThreatObject | None = None,
     ) -> None:
         try:
+            persisted_url = prepare_url_for_persistence(str(request.url))
+            if persisted_url is None:
+                logger.warning(
+                    "Unsafe or malformed URL rejected from persistence for domain=%s",
+                    request.hostname,
+                )
+                return
+
             now = datetime.now(UTC)
             privacy_score_val = getattr(response, "privacy_score", response.score)
+
+            ti_payload = None
+            if threat_intel:
+                ti_payload = threat_intel.model_dump(mode="json")
+            elif response.threat_intelligence:
+                ti_payload = response.threat_intelligence.model_dump(mode="json")
+
             scan_record = ScanHistory(
                 id=response.analysis_id,
                 domain=request.hostname,
-                full_url=str(request.url),
+                full_url=persisted_url,
                 final_security_score=response.score,
                 final_privacy_score=privacy_score_val,
                 final_trust_score=response.score,
@@ -145,9 +169,7 @@ class ScanService:
                     "factors": response.factors,
                     "decision": response.decision.model_dump(),
                     "confidence": response.confidence,
-                    "threat_intelligence": (
-                        threat_intel.model_dump(mode="json") if threat_intel else None
-                    ),
+                    "threat_intelligence": ti_payload,
                 },
                 scanned_at=now,
             )
@@ -173,9 +195,11 @@ class ScanService:
                 db.add(new_rep)
 
             await db.commit()
-        except (SQLAlchemyError, OSError):
-            logger.exception(
-                f"Failed to persist scan history to DB for analysis_id={response.analysis_id} "
-                f"domain={request.hostname}"
+        except (SQLAlchemyError, OSError) as e:
+            logger.error(
+                "Failed to persist scan history to DB for analysis_id=%s domain=%s error_type=%s",
+                response.analysis_id,
+                request.hostname,
+                type(e).__name__,
             )
             await db.rollback()

@@ -52,6 +52,11 @@ class ScoreFusionEngine:
             if not data_completeness:
                 factors.append("Threat intelligence data is incomplete or unavailable")
 
+            if any(s.status == "skipped_privacy" for s in threat_intel.sources):
+                factors.append(
+                    "Google Safe Browsing lookup skipped for privacy protection"
+                )
+
         # 2. Fuse Security Signals
         for sig in security_signals:
             sig_id = sig["id"]

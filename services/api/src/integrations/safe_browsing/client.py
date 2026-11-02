@@ -62,17 +62,21 @@ class GoogleSafeBrowsingClient:
                         match.get("threatType", "UNKNOWN_THREAT") for match in matches
                     ]
                 logger.warning(
-                    f"Google Safe Browsing returned HTTP {response.status_code}: {response.text}"
+                    "Google Safe Browsing returned HTTP %d", response.status_code
                 )
                 raise ThreatIntelUnavailableError(
                     f"Google Safe Browsing returned HTTP {response.status_code}",
                     status_code=response.status_code,
                 )
         except httpx.TimeoutException as e:
-            logger.warning(f"Google Safe Browsing lookup timed out for {url}: {e}")
-            raise ThreatIntelUnavailableError("Google Safe Browsing timed out") from e
-        except (httpx.HTTPError, OSError) as e:
-            logger.warning(f"Google Safe Browsing lookup failed for {url}: {e}")
+            logger.warning(
+                "Google Safe Browsing lookup timed out: %s", type(e).__name__
+            )
             raise ThreatIntelUnavailableError(
-                f"Google Safe Browsing lookup failed: {e}"
-            ) from e
+                "Google Safe Browsing timed out"
+            ) from None
+        except (httpx.HTTPError, OSError) as e:
+            logger.warning("Google Safe Browsing lookup failed: %s", type(e).__name__)
+            raise ThreatIntelUnavailableError(
+                "Google Safe Browsing lookup failed"
+            ) from None

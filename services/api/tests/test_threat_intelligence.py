@@ -32,6 +32,17 @@ class MockVTClient(VirusTotalClient):
         return self.stats
 
 
+class CountingMockVTClient(VirusTotalClient):
+    def __init__(self, stats: dict) -> None:
+        super().__init__(api_key="mock_key")
+        self.stats = stats
+        self.call_count = 0
+
+    async def lookup_domain(self, domain: str) -> dict:
+        self.call_count += 1
+        return self.stats
+
+
 class FailingGSBClient(GoogleSafeBrowsingClient):
     def __init__(self, error: Exception) -> None:
         super().__init__(api_key="mock_key")
@@ -314,22 +325,25 @@ class CountingMockGSBClient(GoogleSafeBrowsingClient):
 @pytest.mark.asyncio
 async def test_threat_intelligence_caching_complete():
     gsb = CountingMockGSBClient()
-    vt = MockVTClient(
+    vt = CountingMockVTClient(
         stats={"malicious": 0, "suspicious": 0, "total_flags": 0, "categories": []}
     )
     cache = MockOSINTCache()
     engine = ThreatIntelligenceEngine(gsb_client=gsb, vt_client=vt, cache=cache)  # type: ignore[arg-type]
 
-    # First lookup -> executes live query, populates cache
+    # First lookup -> executes live queries for both GSB and VT, populates domain cache with VT
     report1 = await engine.lookup("https://cache-test.com", "cache-test.com")
     assert gsb.call_count == 1
+    assert vt.call_count == 1
     assert "Google Safe Browsing" in report1.blacklists_triggered
     assert report1.data_completeness is True
     assert "cache-test.com" in cache.store
 
-    # Second lookup -> hits cache, avoids live query
+    # Second lookup on the same domain -> hits domain cache for VT (vt.call_count stays 1),
+    # but GSB is evaluated per-URL so gsb.call_count increments to 2.
     report2 = await engine.lookup("https://cache-test.com", "cache-test.com")
-    assert gsb.call_count == 1  # did not increment!
+    assert vt.call_count == 1  # VT used domain cache!
+    assert gsb.call_count == 2  # GSB queried per-URL
     assert report2.blacklists_triggered == report1.blacklists_triggered
 
 

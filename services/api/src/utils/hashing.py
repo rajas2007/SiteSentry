@@ -1,19 +1,149 @@
 """URL Hashing and Cache Key Generation Utilities for Site Sentry.
 
-Provides deterministic SHA-256 hashing based on canonical sanitized URLs,
-ensuring cache privacy, mitigating cache poisoning, and standardizing cache keys.
+Provides deterministic SHA-256 and HMAC-SHA-256 hashing based on canonical
+sanitized URLs and security-relevant request features, ensuring cache privacy,
+mitigating cache poisoning, and standardizing cache keys.
 """
 
 from __future__ import annotations
 
 import hashlib
-from typing import Final
+import hmac
+import json
+from typing import Any, Final
 
-from src.utils.normalization import normalize_host
-from src.utils.url import DEFAULT_SENSITIVE_PARAMS, sanitize_url
+from src.utils.normalization import NormalizationError, normalize_host
+from src.utils.url import (
+    DEFAULT_SENSITIVE_PARAMS,
+    InvalidURLError,
+    has_sensitive_parameters,
+    sanitize_url,
+)
 
 DEFAULT_CACHE_KEY_PREFIX: Final[str] = "sitesentry:cache:url:v2"
 DEFAULT_DOMAIN_CACHE_KEY_PREFIX: Final[str] = "sitesentry:cache:osint"
+ANALYSIS_HMAC_PURPOSE: Final[bytes] = b"sitesentry:analysis_cache:v2"
+
+
+def derive_cache_hmac_key(secret: str | None) -> bytes | None:
+    """Derive a domain-separated 256-bit HMAC key from an application secret.
+
+    Returns None if the secret is None, empty, or whitespace-only, safely disabling caching.
+    """
+    if not secret or not secret.strip():
+        return None
+    return hmac.new(
+        secret.encode("utf-8"),
+        ANALYSIS_HMAC_PURPOSE,
+        hashlib.sha256,
+    ).digest()
+
+
+def extract_security_feature_identity(features: Any) -> dict[str, Any]:
+    """Extract deterministic security-relevant DOM features influencing production engines.
+
+    Accepts PageFeatures instance or dict. Normalizes suspicious keywords into a sorted,
+    lowercased unique list to avoid whitespace or casing variations causing cache fragmentation.
+    """
+    if hasattr(features, "model_dump"):
+        f_dict = features.model_dump()
+    elif isinstance(features, dict):
+        f_dict = features
+    else:
+        f_dict = {
+            "hasHttps": getattr(features, "hasHttps", False),
+            "hasPasswordField": getattr(features, "hasPasswordField", False),
+            "hasLoginForm": getattr(features, "hasLoginForm", False),
+            "formCount": getattr(features, "formCount", 0),
+            "externalLinkCount": getattr(features, "externalLinkCount", 0),
+            "suspiciousKeywords": getattr(features, "suspiciousKeywords", []),
+            "hostnameLength": getattr(features, "hostnameLength", 0),
+            "subdomainCount": getattr(features, "subdomainCount", 0),
+        }
+
+    raw_keywords = f_dict.get("suspiciousKeywords", []) or []
+    norm_keywords = sorted(
+        {k.strip().lower() for k in raw_keywords if isinstance(k, str) and k.strip()}
+    )
+
+    return {
+        "externalLinkCount": int(f_dict.get("externalLinkCount", 0)),
+        "formCount": int(f_dict.get("formCount", 0)),
+        "hasHttps": bool(f_dict.get("hasHttps", False)),
+        "hasLoginForm": bool(f_dict.get("hasLoginForm", False)),
+        "hasPasswordField": bool(f_dict.get("hasPasswordField", False)),
+        "hostnameLength": int(f_dict.get("hostnameLength", 0)),
+        "subdomainCount": int(f_dict.get("subdomainCount", 0)),
+        "suspiciousKeywords": norm_keywords,
+    }
+
+
+def should_bypass_analysis_cache(request: Any) -> bool:
+    """Evaluate whether an analysis request must bypass the full URL analysis cache.
+
+    Bypass triggers:
+    1. privacy_policy_text is non-empty (triggers live LLM extraction).
+    2. URL contains sensitive query parameters (prevents sharing/caching sensitive user contexts).
+    """
+    privacy_text = getattr(request, "privacy_policy_text", None)
+    if (
+        privacy_text is not None
+        and isinstance(privacy_text, str)
+        and privacy_text.strip()
+    ):
+        return True
+
+    url_val = getattr(request, "url", None)
+    url_str = str(url_val) if url_val is not None else ""
+    return bool(has_sensitive_parameters(url_str) or "[REDACTED]" in url_str)
+
+
+def compute_analysis_cache_key(
+    request: Any,
+    secret_key: str | None = None,
+    prefix: str = DEFAULT_CACHE_KEY_PREFIX,
+) -> str | None:
+    """Generate an HMAC-SHA-256 analysis cache key for a PageAnalysisRequest.
+
+    Returns None if:
+    - The request triggers cache bypass (privacy_policy_text or sensitive query parameters).
+    - A valid HMAC key cannot be obtained.
+    - URL is malformed or invalid.
+
+    Cache key structure:
+        '{prefix}:{hmac_digest}'
+    """
+    if should_bypass_analysis_cache(request):
+        return None
+
+    hmac_key = derive_cache_hmac_key(secret_key)
+    if hmac_key is None:
+        return None
+
+    url_val = getattr(request, "url", None)
+    url_str = str(url_val) if url_val is not None else ""
+    try:
+        sanitized = sanitize_url(url_str)
+    except (InvalidURLError, NormalizationError, ValueError):
+        return None
+
+    features = getattr(request, "features", None)
+    if features is None:
+        return None
+
+    features_dict = extract_security_feature_identity(features)
+    cookie_count = int(getattr(request, "third_party_cookie_count", 0))
+
+    identity_payload = {
+        "cookie_excess": cookie_count > 10,
+        "features": features_dict,
+        "url": sanitized,
+    }
+
+    serialized = json.dumps(identity_payload, sort_keys=True, separators=(",", ":"))
+    digest = hmac.new(hmac_key, serialized.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    return f"{prefix}:{digest}"
 
 
 def hash_url(

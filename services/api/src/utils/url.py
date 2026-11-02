@@ -76,53 +76,37 @@ class InvalidURLError(ValueError):
 def is_sensitive_parameter(
     param_name: str,
     sensitive_params: frozenset[str] = DEFAULT_SENSITIVE_PARAMS,
-    max_decode_passes: int = 3,
 ) -> bool:
-    """Evaluate whether a query parameter name represents a sensitive parameter.
+    """Determine whether a query parameter key represents a sensitive token or credential.
 
-    Performs case-insensitive matching, multi-pass percent-decoding detection
-    (to prevent single and double URL-encoding bypasses), whitespace stripping,
-    and structured bracket notation evaluation (e.g. 'auth[token]').
+    Evaluates exact match, casing variations, percent-encoded keys, and bracket notation.
 
     Args:
-        param_name: The raw or encoded query parameter name.
-        sensitive_params: Set of sensitive parameter keys to match against.
-        max_decode_passes: Maximum percent-decoding iterations to evaluate.
+        param_name: The parameter name to test.
+        sensitive_params: Canonical set of sensitive parameter keys.
 
     Returns:
-        True if the parameter is identified as sensitive, False otherwise.
+        True if the parameter is deemed sensitive, False otherwise.
     """
     if not param_name:
         return False
 
-    current = param_name.strip()
-    clean = current.strip("\x00 \t\r\n").lower()
+    decoded = urllib.parse.unquote(param_name).strip()
+    while "%" in decoded:
+        next_decoded = urllib.parse.unquote(decoded).strip()
+        if next_decoded == decoded:
+            break
+        decoded = next_decoded
 
-    if clean in sensitive_params:
+    clean_key = decoded.lower()
+
+    if clean_key in sensitive_params:
         return True
 
-    # Check bracketed parameter notation: e.g. "auth[token]" -> "token"
-    bracket_match = _BRACKET_KEY_RE.match(clean)
-    if bracket_match and bracket_match.group(1) in sensitive_params:
-        return True
-
-    # Iterative percent-decoding to uncover obfuscated / double-encoded parameter names
-    for _ in range(max_decode_passes):
-        try:
-            decoded = urllib.parse.unquote(current)
-        except (ValueError, TypeError):
-            break
-
-        if decoded == current:
-            break
-
-        current = decoded
-        clean = current.strip("\x00 \t\r\n").lower()
-        if clean in sensitive_params:
-            return True
-
-        bracket_match = _BRACKET_KEY_RE.match(clean)
-        if bracket_match and bracket_match.group(1) in sensitive_params:
+    bracket_match = _BRACKET_KEY_RE.match(clean_key)
+    if bracket_match:
+        nested_key = bracket_match.group(1).lower()
+        if nested_key in sensitive_params:
             return True
 
     return False
@@ -132,21 +116,24 @@ def sanitize_query_string(
     query: str,
     sensitive_params: frozenset[str] = DEFAULT_SENSITIVE_PARAMS,
     redaction_token: str = REDACTION_TOKEN,
+    strip_sensitive: bool = False,
 ) -> str:
-    """Sanitize a raw query string by masking sensitive parameter values.
+    """Sanitize an HTTP query string by masking or completely removing sensitive parameter values.
 
     Guarantees:
-    - Original query parameter ordering is strictly preserved.
+    - Query parameter order is strictly preserved.
     - Duplicate parameter names are strictly preserved.
     - Empty query components (e.g. '&&', '&', leading/trailing delimiters) are strictly preserved.
     - Original parameter name casing and percent-encoding are preserved.
     - Benign parameter names and values are completely untouched.
     - Empty and valueless parameters are handled safely.
+    - When strip_sensitive=True, parameters matching sensitive_params are completely omitted.
 
     Args:
         query: The raw query string (without the leading '?').
-        sensitive_params: Set of sensitive parameter names to redact.
-        redaction_token: Replacement string for sensitive values.
+        sensitive_params: Set of sensitive parameter names to redact or strip.
+        redaction_token: Replacement string for sensitive values when not stripping.
+        strip_sensitive: If True, completely remove sensitive parameters instead of redacting.
 
     Returns:
         The sanitized query string.
@@ -164,16 +151,28 @@ def sanitize_query_string(
 
         if "=" in pair:
             key, val = pair.split("=", 1)
-            if is_sensitive_parameter(key, sensitive_params=sensitive_params):
-                sanitized_pairs.append(f"{key}={redaction_token}")
+            if is_sensitive_parameter(key, sensitive_params=sensitive_params) or (
+                strip_sensitive and redaction_token in val
+            ):
+                if not strip_sensitive:
+                    sanitized_pairs.append(f"{key}={redaction_token}")
             else:
                 sanitized_pairs.append(f"{key}={val}")
         else:
             # Valueless parameter (e.g., "?token" or "?debug")
-            if is_sensitive_parameter(pair, sensitive_params=sensitive_params):
-                sanitized_pairs.append(f"{pair}={redaction_token}")
+            if is_sensitive_parameter(pair, sensitive_params=sensitive_params) or (
+                strip_sensitive and redaction_token in pair
+            ):
+                if not strip_sensitive:
+                    sanitized_pairs.append(f"{pair}={redaction_token}")
             else:
                 sanitized_pairs.append(pair)
+
+    # When strip_sensitive is True, collapse consecutive or trailing empty delimiters
+    # that resulted from removing pairs, while maintaining valid query structure.
+    if strip_sensitive:
+        filtered_pairs = [p for p in sanitized_pairs if p]
+        return "&".join(filtered_pairs)
 
     return "&".join(sanitized_pairs)
 
@@ -182,8 +181,9 @@ def sanitize_url(
     url: str,
     sensitive_params: frozenset[str] = DEFAULT_SENSITIVE_PARAMS,
     redaction_token: str = REDACTION_TOKEN,
+    strip_sensitive: bool = False,
 ) -> str:
-    """Sanitize a URL by removing credentials, fragments, and sensitive query values.
+    """Sanitize a URL by removing credentials, fragments, and sensitive query values or parameters.
 
     Operations:
     1. Rejects non-string, empty, or whitespace-only inputs.
@@ -192,7 +192,7 @@ def sanitize_url(
     4. Strips user:password credentials from the authority.
     5. Normalizes the hostname (IDN punycode conversion, IPv4/IPv6 validation, lowercase).
     6. Preserves the exact case, slashes, and structure of the path.
-    7. Redacts values of sensitive query parameters while preserving ordering, keys, and empty components.
+    7. Redacts or strips sensitive query parameters while preserving ordering and benign values.
     8. Preserves the distinction between a URL without query delimiter and one with an explicit empty delimiter '?'.
     9. Completely removes URL fragments (RFC 7230 §5.1).
 
@@ -200,6 +200,7 @@ def sanitize_url(
         url: The URL to sanitize.
         sensitive_params: Optional custom set of sensitive parameter names.
         redaction_token: Optional custom redaction token string.
+        strip_sensitive: If True, completely remove sensitive parameters instead of redacting.
 
     Returns:
         The canonical, sanitized URL string.
@@ -250,21 +251,99 @@ def sanitize_url(
     # 3. Preserve original path case and structure
     path = parsed.path
 
-    # 4. Sanitize query string (preserve ordering, redact sensitive keys, keep empty components)
+    # 4. Sanitize query string (preserve ordering, redact/strip sensitive keys, keep benign components)
     query = sanitize_query_string(
         parsed.query,
         sensitive_params=sensitive_params,
         redaction_token=redaction_token,
+        strip_sensitive=strip_sensitive,
     )
 
     # 5. Remove fragment (always empty) and reconstruct URL
     base_unsplit = urllib.parse.urlunsplit((scheme, netloc, path, query, ""))
 
     # 6. Preserve an explicitly present but empty query delimiter (e.g. "https://example.com/path?")
-    if has_explicit_query and not query:
+    # when not stripping sensitive parameters
+    if has_explicit_query and not query and not strip_sensitive:
         return f"{base_unsplit}?"
 
     return base_unsplit
+
+
+def prepare_url_for_persistence(
+    url: str,
+    sensitive_params: frozenset[str] = DEFAULT_SENSITIVE_PARAMS,
+) -> str | None:
+    """Prepare a URL for database persistence (PersistedURL).
+
+    Guarantees:
+    - Never persists authority credentials.
+    - Never persists URL fragments.
+    - Completely removes sensitive query parameters and their values (no [REDACTED] tokens stored).
+    - Preserves benign query parameters, query ordering, duplicate benign parameters, and path casing.
+    - If a safe URL cannot be generated (e.g. malformed or invalid scheme), returns None to fail safely.
+
+    Args:
+        url: The URL string to prepare.
+        sensitive_params: Set of sensitive parameter names to remove.
+
+    Returns:
+        A clean PersistedURL string, or None if the URL cannot be safely processed.
+    """
+    try:
+        # Strip sensitive query parameters completely
+        return sanitize_url(
+            url,
+            sensitive_params=sensitive_params,
+            strip_sensitive=True,
+        )
+    except (InvalidURLError, NormalizationError, ValueError, TypeError):
+        return None
+
+
+def prepare_url_for_display(
+    url: str,
+    sensitive_params: frozenset[str] = DEFAULT_SENSITIVE_PARAMS,
+) -> str:
+    """Prepare a URL for history/dashboard display (DisplayURL).
+
+    Guarantees:
+    - Sanitizes at read-time to protect clients against legacy contaminated database records.
+    - Completely removes any residual credentials, fragments, sensitive parameters, or [REDACTED] tokens.
+    - Preserves origin, path, and benign query parameters.
+    - If a legacy record is malformed or unparseable, returns a safe fallback origin or empty string
+      rather than reflecting the raw contaminated value.
+
+    Args:
+        url: The database URL string.
+        sensitive_params: Set of sensitive parameter names to remove.
+
+    Returns:
+        A client-safe DisplayURL string.
+    """
+    if not url or not isinstance(url, str):
+        return ""
+
+    try:
+        # Try full sanitization with sensitive parameters stripped
+        sanitized = sanitize_url(
+            url,
+            sensitive_params=sensitive_params,
+            strip_sensitive=True,
+        )
+        return sanitized
+    except (InvalidURLError, NormalizationError, ValueError, TypeError):
+        # Safe fallback: attempt to extract only scheme and host
+        try:
+            parsed = urllib.parse.urlsplit(url.strip())
+            if parsed.scheme and parsed.netloc:
+                host_part, _ = strip_authority_credentials(parsed.netloc)
+                norm_host = normalize_host(host_part)
+                norm_scheme = normalize_scheme(parsed.scheme)
+                return f"{norm_scheme}://{norm_host}"
+        except (InvalidURLError, NormalizationError, ValueError, TypeError):
+            return "https://unknown-domain"
+        return "https://unknown-domain"
 
 
 def is_valid_url(url: str) -> bool:
@@ -281,3 +360,77 @@ def is_valid_url(url: str) -> bool:
         return True
     except (InvalidURLError, TypeError):
         return False
+
+
+def has_sensitive_parameters(
+    url: str,
+    sensitive_params: frozenset[str] = DEFAULT_SENSITIVE_PARAMS,
+) -> bool:
+    """Evaluate whether a URL contains any sensitive query parameters.
+
+    Inspects all query parameter keys using `is_sensitive_parameter()`, which
+    handles case-insensitivity, multi-pass percent decoding, and bracket notation.
+
+    Args:
+        url: The URL string to evaluate.
+        sensitive_params: Set of sensitive parameter names to match against.
+
+    Returns:
+        True if any sensitive query parameter is detected, False otherwise.
+    """
+    if not isinstance(url, str):
+        return False
+
+    clean_url = url.strip()
+    if not clean_url:
+        return False
+
+    try:
+        parsed = urllib.parse.urlsplit(clean_url)
+    except ValueError:
+        return False
+
+    if not parsed.query:
+        return False
+
+    pairs = parsed.query.split("&")
+    for pair in pairs:
+        if not pair:
+            continue
+        key = pair.split("=", 1)[0]
+        if is_sensitive_parameter(key, sensitive_params=sensitive_params):
+            return True
+
+    return False
+
+
+def prepare_url_for_provider(
+    url: str,
+    sensitive_params: frozenset[str] = DEFAULT_SENSITIVE_PARAMS,
+) -> str | None:
+    """Prepare a URL for external threat intelligence providers (e.g. Google Safe Browsing).
+
+    If the URL contains any sensitive query parameters, returns None to ensure
+    the provider lookup is skipped rather than dispatching a redacted or sensitive URL.
+
+    Otherwise, strips authority credentials and fragments while strictly preserving
+    path case, query order, duplicate parameters, benign query values, and URL semantics.
+
+    Args:
+        url: The URL string to prepare.
+        sensitive_params: Set of sensitive parameter names to match against.
+
+    Returns:
+        A clean, credential-free, fragment-free URL string, or None if sensitive
+        query parameters are detected.
+
+    Raises:
+        InvalidURLError: If the URL is malformed, uses an invalid scheme, or contains control characters.
+    """
+    if (
+        has_sensitive_parameters(url, sensitive_params=sensitive_params)
+        or REDACTION_TOKEN in url
+    ):
+        return None
+
+    return sanitize_url(url, sensitive_params=sensitive_params)

@@ -50,9 +50,9 @@ class MLFeatureExtractor:
         if threat_intel is not None:
             for source in threat_intel.sources:
                 if source.provider == "VirusTotal":
-                    vt_available = source.status != "unavailable"
+                    vt_available = source.status in ("clean", "detected")
                 elif source.provider == "Google Safe Browsing":
-                    gsb_available = source.status != "unavailable"
+                    gsb_available = source.status in ("clean", "detected")
                     gsb_detected = source.status == "detected"
 
         return MLFeatureVector(

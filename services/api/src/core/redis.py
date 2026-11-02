@@ -1,4 +1,3 @@
-import hashlib
 import json
 import logging
 from typing import Any, cast
@@ -7,6 +6,7 @@ import redis.asyncio as aioredis
 from redis.exceptions import RedisError
 
 from src.core.config import get_settings
+from src.utils.hashing import compute_analysis_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -27,42 +27,59 @@ class RedisCache:
             )
         return self._client
 
-    @staticmethod
-    def _hash_url(url: str) -> str:
-        normalized = url.strip().lower()
-        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    def _resolve_analysis_key(self, request_or_key: Any) -> str | None:
+        """Resolve a cache key from either an explicit key string or a PageAnalysisRequest.
 
-    def _url_key(self, url: str) -> str:
-        return f"sitesentry:cache:url:{self._hash_url(url)}"
+        Returns None if cache bypass is required or a valid key cannot be derived.
+        """
+        if isinstance(request_or_key, str):
+            # Explicit key already resolved or mock test key
+            return request_or_key
 
-    async def get_analysis(self, url: str) -> dict[str, Any] | None:
-        """Retrieve cached analysis result for a URL, returning None on miss or error."""
+        # PageAnalysisRequest or object with url / features
+        settings = get_settings()
+        return compute_analysis_cache_key(
+            request=request_or_key,
+            secret_key=settings.SECRET_KEY,
+        )
+
+    async def get_analysis(self, request_or_key: Any) -> dict[str, Any] | None:
+        """Retrieve cached analysis result for a request or key, returning None on miss, bypass, or error."""
         try:
+            key = self._resolve_analysis_key(request_or_key)
+            if not key:
+                return None
+
             client = self._get_client()
-            key = self._url_key(url)
             raw = await client.get(key)
             if raw:
                 return cast(dict[str, Any], json.loads(raw))
         except (RedisError, ConnectionError, OSError, json.JSONDecodeError) as e:
-            logger.warning(f"Redis get_analysis failed, proceeding without cache: {e}")
+            logger.warning(
+                "Redis get_analysis failed, proceeding without cache: %s",
+                type(e).__name__,
+            )
         return None
 
     async def set_analysis(
         self,
-        url: str,
+        request_or_key: Any,
         data: dict[str, Any],
         ttl: int | None = None,
     ) -> bool:
-        """Cache analysis result for a URL with a TTL in seconds."""
+        """Cache analysis result for a request or key with a TTL in seconds."""
         try:
+            key = self._resolve_analysis_key(request_or_key)
+            if not key:
+                return False
+
             client = self._get_client()
-            key = self._url_key(url)
             expire = ttl if ttl is not None else get_settings().REDIS_CACHE_TTL_SECONDS
             serialized = json.dumps(data)
             await client.set(key, serialized, ex=expire)
             return True
         except (RedisError, ConnectionError, OSError, TypeError) as e:
-            logger.warning(f"Redis set_analysis failed: {e}")
+            logger.warning("Redis set_analysis failed: %s", type(e).__name__)
         return False
 
     def _osint_key(self, domain: str) -> str:
@@ -77,7 +94,9 @@ class RedisCache:
             if raw:
                 return cast(dict[str, Any], json.loads(raw))
         except (RedisError, ConnectionError, OSError, json.JSONDecodeError) as e:
-            logger.warning(f"Redis get_osint failed, proceeding without cache: {e}")
+            logger.warning(
+                "Redis get_osint failed, proceeding without cache: %s", type(e).__name__
+            )
         return None
 
     async def set_osint(
@@ -94,7 +113,7 @@ class RedisCache:
             await client.set(key, serialized, ex=ttl)
             return True
         except (RedisError, ConnectionError, OSError, TypeError) as e:
-            logger.warning(f"Redis set_osint failed: {e}")
+            logger.warning("Redis set_osint failed: %s", type(e).__name__)
         return False
 
     async def close(self) -> None:
@@ -103,7 +122,7 @@ class RedisCache:
             try:
                 await self._client.aclose()
             except (RedisError, ConnectionError, OSError) as e:
-                logger.warning(f"Error closing Redis client: {e}")
+                logger.warning("Error closing Redis client: %s", type(e).__name__)
             finally:
                 self._client = None
 

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class ProviderStatus(BaseModel):
     provider: str
-    status: Literal["clean", "detected", "unavailable"]
+    status: Literal["clean", "detected", "unavailable", "skipped_privacy"]
     categories: list[str] = Field(default_factory=list)
     summary: str = ""
 

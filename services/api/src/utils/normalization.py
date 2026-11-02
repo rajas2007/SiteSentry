@@ -34,7 +34,7 @@ def normalize_scheme(scheme: str) -> str:
     normalized = scheme.strip().lower()
     if normalized not in SUPPORTED_SCHEMES:
         raise NormalizationError(
-            f"Unsupported scheme '{normalized}'. Only HTTP and HTTPS are permitted."
+            "Unsupported URL scheme. Only HTTP and HTTPS are permitted."
         )
     return normalized
 
