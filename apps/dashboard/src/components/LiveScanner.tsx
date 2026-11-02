@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { Sparkles, Loader2, Check, Server, Cpu, Layers, ExternalLink, AlertCircle, X } from 'lucide-react';
 import { DetailedScanResult } from '../lib/types';
 import { performLiveScan } from '../lib/api';
+import { isSafeExternalUrl } from '../lib/url';
 import { ScoreRing } from './sentry/primitives';
 import { Panel } from './sentry/primitives';
 
@@ -60,7 +61,7 @@ export default function LiveScanner({ onScanComplete, onInspect }: LiveScannerPr
       setIsComplete(false);
       const msg = error instanceof Error ? error.message : 'Live scan request failed. Please check backend connection.';
       setScanError(msg);
-      console.error("Live scan failed:", error);
+      console.error(`Live scan failed: ${msg}`);
     } finally {
       setIsScanning(false);
     }
@@ -220,15 +221,17 @@ export default function LiveScanner({ onScanComplete, onInspect }: LiveScannerPr
               >
                 <Layers className="h-3 w-3" /> Full Report
               </button>
-              <a
-                href={lastResult.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/80 bg-secondary/50 text-muted-foreground transition-colors hover:bg-secondary hover:text-heading"
-                title="Open in new tab"
-              >
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              {isSafeExternalUrl(lastResult.url) && (
+                <a
+                  href={lastResult.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/80 bg-secondary/50 text-muted-foreground transition-colors hover:bg-secondary hover:text-heading"
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </div>
           </div>
 

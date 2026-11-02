@@ -259,6 +259,36 @@ describe('fetchScanHistory', () => {
       expect.any(Object)
     );
   });
+
+  it('sanitizes legacy contaminated URLs in history items', async () => {
+    const rawItems = [
+      {
+        id: 'legacy-1',
+        url: 'https://user:password@legacy-site.org/path?token=secret123&page=1#frag',
+        domain: 'legacy-site.org',
+        score: 75,
+        severity: 'medium' as const,
+        verdict: 'warn' as const,
+        threat_category: 'suspicious',
+        scanned_at: '2026-10-11T12:00:00.000Z',
+      },
+    ];
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: rawItems,
+        total: 1,
+      }),
+    });
+
+    const result = await fetchScanHistory(10, 0);
+    expect(result?.items[0].url).toBe('https://legacy-site.org/path?page=1');
+    expect(result?.items[0].url).not.toContain('user');
+    expect(result?.items[0].url).not.toContain('password');
+    expect(result?.items[0].url).not.toContain('token');
+    expect(result?.items[0].url).not.toContain('secret123');
+  });
 });
 
 describe('fetchScanDetail', () => {
@@ -320,6 +350,33 @@ describe('fetchScanDetail', () => {
 
     const result = await fetchScanDetail('scan-123');
     expect(result).toBeNull();
+  });
+
+  it('sanitizes contaminated URL in scan detail', async () => {
+    const mockDetail = {
+      id: 'scan-detail-1',
+      url: 'https://admin:pass@example.com/login?token=abc&page=2#frag',
+      domain: 'example.com',
+      score: 80,
+      severity: 'low',
+      verdict: 'allow',
+      threat_category: 'safe',
+      scanned_at: '2026-10-11T12:00:00.000Z',
+      confidence: 0.9,
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockDetail,
+    });
+
+    const result = await fetchScanDetail('scan-detail-1');
+    expect(result?.url).toBe('https://example.com/login?page=2');
+    expect(result?.url).not.toContain('admin');
+    expect(result?.url).not.toContain('pass');
+    expect(result?.url).not.toContain('token');
+    expect(result?.url).not.toContain('abc');
+    expect(result?.url).not.toContain('#');
   });
 });
 
@@ -415,5 +472,44 @@ describe('performLiveScan', () => {
     }
 
     expect(errorThrown).toBeInstanceOf(Error);
+  });
+
+  it('sanitizes target URL before dispatching to backend analyze API', async () => {
+    const mockApiResponse = {
+      analysis_id: 'scan-live-clean',
+      url: 'https://example.com/login?page=1',
+      score: 90,
+      security_score: 90,
+      privacy_score: 90,
+      domain_authority: 90,
+      severity: 'low',
+      confidence: 0.95,
+      threat_category: 'safe',
+      decision: { action: 'allow', severity: 'low', ui: { color: 'emerald' } },
+      recommendations: [],
+      factors: [],
+      scanned_at: '2026-10-14T12:00:00.000Z',
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockApiResponse,
+    });
+
+    const sensitiveInput = 'https://user:pwd@example.com/login?token=supersecret&page=1#frag';
+    const result = await performLiveScan(sensitiveInput);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/analyze'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringMatching(/"url":"https:\/\/example\.com\/login\?page=1"/),
+      })
+    );
+    expect(result.url).toBe('https://example.com/login?page=1');
+    expect(result.url).not.toContain('user');
+    expect(result.url).not.toContain('pwd');
+    expect(result.url).not.toContain('supersecret');
+    expect(result.url).not.toContain('#frag');
   });
 });

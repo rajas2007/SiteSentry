@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { History, Search, Download, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { ScanHistoryItem } from '../lib/types';
+import { escapeCsvCell, sanitizeUrlForDisplay } from '../lib/url';
 import { ScoreBadge, ThreatCategoryBadge, VerdictBadge, SeverityBadge } from './Badges';
 
 interface ScanHistoryViewProps {
@@ -33,8 +34,25 @@ export default function ScanHistoryView({ scans, onSelectScan, newlyAddedId }: S
   const paginatedItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleExportCSV = () => {
-    const headers = ['ID,Domain,URL,TrustScore,SecurityScore,PrivacyScore,Severity,Verdict,Category,ScannedAt'];
-    const rows = filtered.map(s => `"${s.id}","${s.domain}","${s.url}",${s.score},${s.security_score ?? s.score},${s.privacy_score ?? s.score},"${s.severity}","${s.verdict}","${s.threat_category}","${s.scanned_at}"`);
+    const headers = 'ID,Domain,URL,TrustScore,SecurityScore,PrivacyScore,Severity,Verdict,Category,ScannedAt';
+    const rows = filtered.map((s) => {
+      const cleanUrl = sanitizeUrlForDisplay(
+        s.url,
+        s.domain ? `https://${s.domain}` : 'https://unknown-domain'
+      );
+      return [
+        escapeCsvCell(s.id),
+        escapeCsvCell(s.domain),
+        escapeCsvCell(cleanUrl),
+        escapeCsvCell(s.score),
+        escapeCsvCell(s.security_score ?? s.score),
+        escapeCsvCell(s.privacy_score ?? s.score),
+        escapeCsvCell(s.severity),
+        escapeCsvCell(s.verdict),
+        escapeCsvCell(s.threat_category),
+        escapeCsvCell(s.scanned_at),
+      ].join(',');
+    });
     const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent([headers, ...rows].join('\n'));
     const link = document.createElement('a');
     link.setAttribute('href', csvContent);
@@ -45,7 +63,14 @@ export default function ScanHistoryView({ scans, onSelectScan, newlyAddedId }: S
   };
 
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(filtered, null, 2));
+    const sanitizedRecords = filtered.map((s) => ({
+      ...s,
+      url: sanitizeUrlForDisplay(
+        s.url,
+        s.domain ? `https://${s.domain}` : 'https://unknown-domain'
+      ),
+    }));
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(sanitizedRecords, null, 2));
     const link = document.createElement('a');
     link.setAttribute('href', dataStr);
     link.setAttribute('download', `sitesentry-audit-ledger-${Date.now()}.json`);
@@ -194,7 +219,10 @@ export default function ScanHistoryView({ scans, onSelectScan, newlyAddedId }: S
                             fontFamily: 'var(--font-mono)',
                           }}
                         >
-                          {scan.url}
+                          {sanitizeUrlForDisplay(
+                            scan.url,
+                            scan.domain ? `https://${scan.domain}` : 'https://unknown-domain'
+                          )}
                         </div>
                       </td>
 

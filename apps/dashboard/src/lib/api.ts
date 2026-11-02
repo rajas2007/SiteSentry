@@ -1,4 +1,5 @@
 import { ScanHistoryItem, DetailedScanResult, DashboardMetrics, AnalyticsOverview } from './types';
+import { sanitizeUrlForDisplay } from './url';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -35,19 +36,34 @@ export async function fetchScanHistory(
     }
     const data = await res.json();
     if (data && Array.isArray(data.items)) {
+      const sanitizedItems = data.items.map((item: ScanHistoryItem) => ({
+        ...item,
+        url: sanitizeUrlForDisplay(
+          item.url,
+          item.domain ? `https://${item.domain}` : 'https://unknown-domain'
+        ),
+      }));
       return {
-        items: data.items,
+        items: sanitizedItems,
         total: typeof data.total === 'number' ? data.total : data.items.length,
       };
     }
     return null;
   } catch (error) {
-    console.warn('Backend unavailable or network error when fetching scan history:', error);
+    const message = error instanceof Error ? error.message : 'Network error';
+    console.warn(`Backend unavailable or network error when fetching scan history: ${message}`);
     return null;
   }
 }
 
 export async function performLiveScan(targetUrl: string): Promise<DetailedScanResult> {
+  const sanitizedInput = sanitizeUrlForDisplay(targetUrl);
+  if (sanitizedInput) {
+    targetUrl = sanitizedInput;
+  } else if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+    targetUrl = `https://${targetUrl}`;
+  }
+
   let hostname = '';
   try {
     hostname = new URL(targetUrl).hostname;
@@ -101,7 +117,7 @@ export async function performLiveScan(targetUrl: string): Promise<DetailedScanRe
 
     return {
       analysis_id: data.analysis_id || `scan-${Date.now()}`,
-      url: data.url || targetUrl,
+      url: sanitizeUrlForDisplay(data.url || targetUrl, targetUrl),
       domain: hostname,
       score: data.score,
       security_score: data.security_score ?? Math.round(data.score * 0.95),
@@ -132,7 +148,10 @@ export async function fetchScanDetail(analysis_id: string): Promise<DetailedScan
       const data = await res.json();
       return {
         analysis_id: data.id,
-        url: data.url,
+        url: sanitizeUrlForDisplay(
+          data.url,
+          data.domain ? `https://${data.domain}` : 'https://unknown-domain'
+        ),
         domain: data.domain,
         score: data.score,
         severity: data.severity,
@@ -151,7 +170,8 @@ export async function fetchScanDetail(analysis_id: string): Promise<DetailedScan
       } as DetailedScanResult;
     }
   } catch (error) {
-    console.error('Failed to fetch scan detail:', error);
+    const message = error instanceof Error ? error.message : 'Fetch error';
+    console.error(`Failed to fetch scan detail: ${message}`);
   }
   return null;
 }
@@ -179,7 +199,8 @@ export async function fetchAnalytics(days = 30): Promise<AnalyticsOverview | nul
 
     return data as AnalyticsOverview;
   } catch (error) {
-    console.warn('Backend unavailable or network error when fetching analytics:', error);
+    const message = error instanceof Error ? error.message : 'Network error';
+    console.warn(`Backend unavailable or network error when fetching analytics: ${message}`);
     return null;
   }
 }

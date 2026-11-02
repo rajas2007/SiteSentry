@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { History, Search, Eye, AlertCircle, RotateCw } from 'lucide-react';
 import { ScanHistoryItem } from '../lib/types';
+import { sanitizeUrlForDisplay } from '../lib/url';
 import { Panel, RiskBadge } from './sentry/primitives';
 import { cn } from '../lib/utils';
 
@@ -148,8 +149,11 @@ export default function RecentScansTable({
                       <p className="break-all font-mono text-xs font-medium text-heading sm:text-sm">
                         {scan.domain}
                       </p>
-                      <p className="max-w-full truncate font-mono text-[10px] text-muted-foreground mt-0.5" title={scan.url}>
-                        {scan.url}
+                      <p
+                        className="max-w-full truncate font-mono text-[10px] text-muted-foreground mt-0.5"
+                        title={sanitizeUrlForDisplay(scan.url, scan.domain ? `https://${scan.domain}` : 'https://unknown-domain')}
+                      >
+                        {sanitizeUrlForDisplay(scan.url, scan.domain ? `https://${scan.domain}` : 'https://unknown-domain')}
                       </p>
                     </div>
 

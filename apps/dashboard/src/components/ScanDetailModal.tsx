@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, Clock, Radar, Minus } from 'lucide-react';
 import { DetailedScanResult } from '../lib/types';
+import { sanitizeUrlForDisplay } from '../lib/url';
 import { ScoreRing, RiskMascot, RiskBadge } from './sentry/primitives';
 import { cn } from '../lib/utils';
 import { formatCategory, severityStyle, type Severity } from '../lib/sentry';
@@ -77,7 +78,7 @@ export default function ScanDetailModal({ scan, onClose }: ScanDetailModalProps)
               {scan.domain}
             </h2>
             <p className="break-all font-mono text-xs text-muted-foreground">
-              {scan.url}
+              {sanitizeUrlForDisplay(scan.url, scan.domain ? `https://${scan.domain}` : 'https://unknown-domain')}
             </p>
           </div>
 

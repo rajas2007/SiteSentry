@@ -18,6 +18,7 @@ import {
   fetchAnalytics
 } from '../../lib/api';
 import { ScanHistoryItem, DetailedScanResult, DashboardMetrics, AnalyticsOverview } from '../../lib/types';
+import { sanitizeUrlForDisplay } from '../../lib/url';
 import { AlertCircle, X } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -85,9 +86,10 @@ export default function DashboardPage() {
       handleScanComplete(result);
       setSelectedScan(result);
     } catch (error) {
-      console.error('Quick scan failed:', error);
       const msg = error instanceof Error ? error.message : 'Quick scan request failed.';
-      setDetailError(`Quick scan failed for ${url}: ${msg}`);
+      console.error(`Quick scan failed: ${msg}`);
+      const cleanUrl = sanitizeUrlForDisplay(url) || 'target';
+      setDetailError(`Quick scan failed for ${cleanUrl}: ${msg}`);
     }
   };
 

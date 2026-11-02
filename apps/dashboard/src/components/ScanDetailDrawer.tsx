@@ -19,6 +19,7 @@ import {
   Layers 
 } from 'lucide-react';
 import { DetailedScanResult } from '../lib/types';
+import { isSafeExternalUrl, sanitizeUrlForDisplay } from '../lib/url';
 import ScoreGauge from './ScoreGauge';
 import { VerdictBadge, SeverityBadge, ThreatCategoryBadge } from './Badges';
 
@@ -55,8 +56,14 @@ export default function ScanDetailDrawer({ scan, onClose }: ScanDetailDrawerProp
 
   if (!scan) return null;
 
+  const displayUrl = sanitizeUrlForDisplay(
+    scan.url,
+    scan.domain ? `https://${scan.domain}` : 'https://unknown-domain'
+  );
+  const isSafeLink = isSafeExternalUrl(displayUrl);
+
   const handleCopyUrl = () => {
-    navigator.clipboard.writeText(scan.url);
+    navigator.clipboard.writeText(displayUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -130,7 +137,7 @@ export default function ScanDetailDrawer({ scan, onClose }: ScanDetailDrawerProp
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.2rem' }}>
               <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>
-                {scan.url}
+                {displayUrl}
               </p>
               <button
                 type="button"
@@ -329,15 +336,25 @@ export default function ScanDetailDrawer({ scan, onClose }: ScanDetailDrawerProp
             bottom: 0,
           }}
         >
-          <a
-            href={scan.url}
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-secondary"
-            style={{ fontSize: '0.8rem' }}
-          >
-            <ExternalLink size={14} /> Visit Site
-          </a>
+          {isSafeLink ? (
+            <a
+              href={displayUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem' }}
+            >
+              <ExternalLink size={14} /> Visit Site
+            </a>
+          ) : (
+            <span
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', opacity: 0.5, cursor: 'not-allowed' }}
+              title="External navigation unavailable for untrusted protocol"
+            >
+              <ExternalLink size={14} /> Visit Site
+            </span>
+          )}
           <button
             type="button"
             onClick={handleTriggerClose}
