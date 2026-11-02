@@ -44,7 +44,7 @@ class Settings(BaseSettings):
         if self.API_ENV.lower() == "production" and (
             not self.SECRET_KEY
             or not self.SECRET_KEY.strip()
-            or self.SECRET_KEY == "default_development_secret"
+            or self.SECRET_KEY == "default_development_secret"  # nosec B105
             or len(self.SECRET_KEY.strip()) < 32
         ):
             raise ValueError(

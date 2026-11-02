@@ -108,8 +108,8 @@ describe('Content Script URL Sanitizer', () => {
     it('returns null for empty or non-string inputs', () => {
       expect(sanitizeUrl('')).toBeNull();
       expect(sanitizeUrl('   ')).toBeNull();
-      expect(sanitizeUrl(null as any)).toBeNull();
-      expect(sanitizeUrl(undefined as any)).toBeNull();
+      expect(sanitizeUrl(null as unknown as string)).toBeNull();
+      expect(sanitizeUrl(undefined as unknown as string)).toBeNull();
     });
   });
 });

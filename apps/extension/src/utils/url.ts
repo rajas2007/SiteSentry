@@ -38,7 +38,7 @@ export const DEFAULT_SENSITIVE_PARAMS: ReadonlySet<string> = new Set([
   'token',
 ]);
 
-const BRACKET_KEY_RE = /^[a-zA-Z0-9_\-]+\[([a-zA-Z0-9_\-]+)\]$/;
+const BRACKET_KEY_RE = /^[a-zA-Z0-9_-]+\[([a-zA-Z0-9_-]+)\]$/;
 const CONTROL_CHARS_RE = /[\r\n\0]/;
 
 /**
