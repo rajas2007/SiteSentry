@@ -1,9 +1,24 @@
 import { extractPageFeatures, extractPrivacyPolicyText, getThirdPartyCookieCount } from './dom-extractor';
-import { PageAnalysisRequest, ExtensionMessage, ExtensionMessageResponse } from '@site-sentry/shared-types';
+import { PageAnalysisRequest, ExtensionMessage } from '@site-sentry/shared-types';
+import { sanitizeUrl } from './url-sanitizer';
 
 export async function analyzeCurrentPage(): Promise<void> {
+  // Scheme restriction: strictly restrict execution to HTTP and HTTPS protocols
+  if (
+    typeof window === 'undefined' ||
+    (window.location.protocol !== 'http:' && window.location.protocol !== 'https:')
+  ) {
+    return;
+  }
+
+  // Client-side URL sanitization: strip credentials, fragments, and sensitive parameters
+  const sanitizedUrl = sanitizeUrl(window.location.href);
+  if (!sanitizedUrl) {
+    return;
+  }
+
   const request: PageAnalysisRequest = {
-    url: window.location.href,
+    url: sanitizedUrl,
     title: document.title,
     hostname: window.location.hostname,
     features: extractPageFeatures(),
@@ -17,10 +32,10 @@ export async function analyzeCurrentPage(): Promise<void> {
   };
 
   try {
-    const response = await chrome.runtime.sendMessage(message) as ExtensionMessageResponse;
-    console.log('[Site Sentry] Analysis response:', response);
-  } catch (error) {
-    console.error('[Site Sentry] Failed to send analysis message:', error);
+    await chrome.runtime.sendMessage(message);
+  } catch {
+    // Sanitized error logging: do not expose raw URLs, tokens, or response payloads
+    console.warn('[Site Sentry] Failed to dispatch page analysis message.');
   }
 }
 
@@ -35,12 +50,23 @@ if (typeof document !== 'undefined') {
   }
 }
 
-// SPA navigation observer (read-only polling)
-let currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+// SPA navigation observer (read-only polling with sanitized URL tracking)
+let currentUrl =
+  typeof window !== 'undefined'
+    ? sanitizeUrl(window.location.href) || ''
+    : '';
+
 if (typeof window !== 'undefined') {
   setInterval(() => {
-    if (window.location.href !== currentUrl) {
-      currentUrl = window.location.href;
+    if (
+      window.location.protocol !== 'http:' &&
+      window.location.protocol !== 'https:'
+    ) {
+      return;
+    }
+    const newSanitizedUrl = sanitizeUrl(window.location.href) || '';
+    if (newSanitizedUrl && newSanitizedUrl !== currentUrl) {
+      currentUrl = newSanitizedUrl;
       analyzeCurrentPage();
     }
   }, 1000);

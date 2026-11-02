@@ -19,8 +19,20 @@ const SUSPICIOUS_KEYWORDS = [
   'confirm',
   'security',
   'wallet',
-  'payment'
+  'payment',
 ];
+
+/**
+ * Regex matching canonical, dedicated privacy policy path structures.
+ * Never inspects query strings or full hrefs to prevent query-parameter-based triggers.
+ */
+export const CANONICAL_PRIVACY_PATH_RE =
+  /^\/(?:(?:legal|about|terms|policies|company)\/)?(?:privacy(?:[-_]policy)?|privacy-notice|data-privacy)(?:\.(?:html|php|htm|asp|aspx))?\/?$/i;
+
+export function isCanonicalPrivacyPath(pathname: string): boolean {
+  if (!pathname || typeof pathname !== 'string') return false;
+  return CANONICAL_PRIVACY_PATH_RE.test(pathname.trim());
+}
 
 export function extractPageFeatures(): PageFeatures {
   // PRIVACY BOUNDARY: Do NOT collect entered text, passwords, or actual form data.
@@ -32,13 +44,17 @@ export function extractPageFeatures(): PageFeatures {
 
   for (const form of forms) {
     const inputs = Array.from(form.querySelectorAll('input'));
-    const hasPassword = inputs.some(i => i.type.toLowerCase() === 'password');
+    const hasPassword = inputs.some((i) => i.type.toLowerCase() === 'password');
     if (hasPassword) hasPasswordField = true;
-    
+
     // Simple heuristic for login form
-    const hasUsername = inputs.some(i => 
-      ['text', 'email'].includes(i.type.toLowerCase()) && 
-      (i.name.toLowerCase().includes('user') || i.name.toLowerCase().includes('email') || i.id.toLowerCase().includes('user') || i.id.toLowerCase().includes('login'))
+    const hasUsername = inputs.some(
+      (i) =>
+        ['text', 'email'].includes(i.type.toLowerCase()) &&
+        (i.name.toLowerCase().includes('user') ||
+          i.name.toLowerCase().includes('email') ||
+          i.id.toLowerCase().includes('user') ||
+          i.id.toLowerCase().includes('login'))
     );
 
     if (hasPassword && hasUsername) {
@@ -64,7 +80,7 @@ export function extractPageFeatures(): PageFeatures {
   // Count text indicators
   const pageText = (document.body.textContent || '').toLowerCase();
   const suspiciousKeywordsDetected: string[] = [];
-  
+
   for (const keyword of SUSPICIOUS_KEYWORDS) {
     if (pageText.includes(keyword)) {
       suspiciousKeywordsDetected.push(keyword);
@@ -87,42 +103,52 @@ export function extractPageFeatures(): PageFeatures {
     pageTextLength: pageText.length,
     hasHttps: window.location.protocol === 'https:',
     hostnameLength: currentHostname.length,
-    subdomainCount
+    subdomainCount,
   };
 }
 
-export function extractPrivacyPolicyText(): string | null {
-  // If the current URL is explicitly a privacy policy, extract the body
-  if (
-    window.location.href.toLowerCase().includes('privacy') ||
-    window.location.pathname.toLowerCase().includes('policy')
-  ) {
-    const text = document.body.textContent || '';
-    return text.substring(0, 4000);
+export function extractPrivacyPolicyText(): string {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return '';
   }
 
-  // Otherwise, attempt to find a privacy policy section or link on the page
-  const links = Array.from(document.querySelectorAll('a'));
-  links.some(link => 
-    link.textContent?.toLowerCase().includes('privacy') ||
-    link.href.toLowerCase().includes('privacy')
+  const pathname = window.location.pathname || '';
+  const isPolicyPath = isCanonicalPrivacyPath(pathname);
+
+  // 1. Prefer designated static privacy policy container elements
+  const privacyElement = document.querySelector(
+    '[id*="privacy-policy" i], [class*="privacy-policy" i], [id*="privacy-notice" i], [class*="privacy-notice" i], [id*="privacy" i], [class*="privacy" i]'
   );
-
-  // If there's a privacy policy section embedded in the page itself, find it
-  // (e.g. some SPAs or modals have sections labeled 'privacy-policy')
-  const privacyElement = document.querySelector('[id*="privacy" i], [class*="privacy" i]');
-  if (privacyElement && privacyElement.textContent && privacyElement.textContent.length > 100) {
-     return privacyElement.textContent.substring(0, 4000);
+  if (
+    privacyElement &&
+    privacyElement.textContent &&
+    privacyElement.textContent.trim().length > 100
+  ) {
+    return privacyElement.textContent.trim().substring(0, 4000);
   }
 
-  return null;
+  // 2. If on an explicit canonical privacy policy URL path, extract content
+  if (isPolicyPath) {
+    const mainElement = document.querySelector('main, article');
+    if (mainElement && mainElement.textContent && mainElement.textContent.trim()) {
+      return mainElement.textContent.trim().substring(0, 4000);
+    }
+
+    const bodyText = (document.body.textContent || '').trim();
+    if (bodyText) {
+      return bodyText.substring(0, 4000);
+    }
+  }
+
+  // 3. Fallback: if no safe privacy policy element can be identified, return empty string
+  return '';
 }
 
 export function getThirdPartyCookieCount(): number | undefined {
   // We cannot reliably determine third-party cookies from a content script
   // securely without extensive permissions (chrome.cookies) which would require
   // host permissions for all domains.
-  // 
+  //
   // Returning undefined to explicitly state we don't know, rather than fake 0.
   // The API contract only supports integer/null/undefined.
   return undefined;

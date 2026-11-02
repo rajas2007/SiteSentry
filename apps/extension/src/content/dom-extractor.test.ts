@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { extractPageFeatures } from './dom-extractor';
+import {
+  extractPageFeatures,
+  extractPrivacyPolicyText,
+  getThirdPartyCookieCount,
+  isCanonicalPrivacyPath,
+} from './dom-extractor';
 
 describe('DOM Extractor', () => {
   beforeEach(() => {
@@ -11,15 +16,16 @@ describe('DOM Extractor', () => {
         href: 'https://example.com',
         hostname: 'example.com',
         protocol: 'https:',
+        pathname: '/',
       },
-      writable: true
+      writable: true,
     });
   });
 
   it('should extract basic metadata correctly', () => {
     document.body.innerHTML = '<p>Welcome to the safe page.</p>';
     const features = extractPageFeatures();
-    
+
     expect(features.hasHttps).toBe(true);
     expect(features.hostnameLength).toBe(11); // example.com
     expect(features.subdomainCount).toBe(0);
@@ -33,7 +39,7 @@ describe('DOM Extractor', () => {
         <input type="password" name="pwd" />
       </form>
     `;
-    
+
     const features = extractPageFeatures();
     expect(features.formCount).toBe(1);
     expect(features.hasPasswordField).toBe(true);
@@ -43,15 +49,13 @@ describe('DOM Extractor', () => {
   it('should detect suspicious keywords', () => {
     document.body.innerHTML = '<p>Please verify your account password urgently.</p>';
     const features = extractPageFeatures();
-    
+
     expect(features.suspiciousKeywords).toContain('verify');
     expect(features.suspiciousKeywords).toContain('account');
     expect(features.suspiciousKeywords).toContain('password');
     expect(features.suspiciousKeywords).toContain('urgent');
   });
 });
-
-import { extractPrivacyPolicyText, getThirdPartyCookieCount } from './dom-extractor';
 
 describe('Privacy Extractor', () => {
   beforeEach(() => {
@@ -61,13 +65,30 @@ describe('Privacy Extractor', () => {
         href: 'https://example.com',
         hostname: 'example.com',
         protocol: 'https:',
-        pathname: '/'
+        pathname: '/',
+        search: '',
       },
-      writable: true
+      writable: true,
     });
   });
 
-  it('should extract text if URL indicates privacy policy', () => {
+  it('identifies canonical privacy policy paths correctly', () => {
+    expect(isCanonicalPrivacyPath('/privacy')).toBe(true);
+    expect(isCanonicalPrivacyPath('/privacy/')).toBe(true);
+    expect(isCanonicalPrivacyPath('/privacy.html')).toBe(true);
+    expect(isCanonicalPrivacyPath('/privacy-policy')).toBe(true);
+    expect(isCanonicalPrivacyPath('/legal/privacy')).toBe(true);
+    expect(isCanonicalPrivacyPath('/about/privacy-policy')).toBe(true);
+
+    // Non-policy paths must return false
+    expect(isCanonicalPrivacyPath('/account/settings')).toBe(false);
+    expect(isCanonicalPrivacyPath('/user/profile')).toBe(false);
+    expect(isCanonicalPrivacyPath('/portal/insurance-policy')).toBe(false);
+    expect(isCanonicalPrivacyPath('/dashboard')).toBe(false);
+    expect(isCanonicalPrivacyPath('/')).toBe(false);
+  });
+
+  it('should extract text if URL pathname matches canonical privacy policy', () => {
     window.location.href = 'https://example.com/privacy';
     window.location.pathname = '/privacy';
     document.body.textContent = 'This is a privacy policy. We respect your data.';
@@ -75,16 +96,26 @@ describe('Privacy Extractor', () => {
     expect(text).toContain('We respect your data');
   });
 
-  it('should extract text from privacy link if URL is not privacy policy', () => {
-    document.body.innerHTML = '<div>Some other content</div><a href="/privacy">Privacy Policy</a>';
+  it('never triggers extraction based on query parameters', () => {
+    window.location.href = 'https://bank.com/account/settings?tab=privacy&view=policy';
+    window.location.pathname = '/account/settings';
+    document.body.textContent = 'Confidential user banking dashboard with balance $50,000.';
+
     const text = extractPrivacyPolicyText();
-    // It extracts the link text or surrounding if matched. Actually, our implementation checks
-    // if a link exists, but then we check if there's a privacy Element.
-    expect(text).toBeNull();
+    expect(text).toBe('');
+    expect(text).not.toContain('Confidential');
   });
 
-  it('should extract text from an element with privacy in id', () => {
-    // Generate text > 100 chars
+  it('never extracts arbitrary body text on general non-policy pages', () => {
+    window.location.href = 'https://app.com/dashboard';
+    window.location.pathname = '/dashboard';
+    document.body.textContent = 'Private user documents and messages.';
+
+    const text = extractPrivacyPolicyText();
+    expect(text).toBe('');
+  });
+
+  it('should extract text from designated static privacy container element', () => {
     const longText = 'A'.repeat(150);
     document.body.innerHTML = `<div id="privacy-policy">${longText}</div>`;
     const text = extractPrivacyPolicyText();
@@ -93,16 +124,17 @@ describe('Privacy Extractor', () => {
 
   it('should bound the extracted text to 4000 characters', () => {
     window.location.href = 'https://example.com/privacy';
+    window.location.pathname = '/privacy';
     const hugeText = 'B'.repeat(5000);
     document.body.textContent = hugeText;
     const text = extractPrivacyPolicyText();
-    expect(text?.length).toBe(4000);
+    expect(text.length).toBe(4000);
   });
 
-  it('should return null if no privacy policy is found', () => {
+  it('should return empty string if no privacy policy is found', () => {
     document.body.innerHTML = '<div>Just a normal page</div>';
     const text = extractPrivacyPolicyText();
-    expect(text).toBeNull();
+    expect(text).toBe('');
   });
 
   it('should return undefined for third party cookie count to avoid faking data', () => {

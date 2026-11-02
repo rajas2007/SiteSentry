@@ -189,9 +189,10 @@ describe('WarningApp Component', () => {
       // Hostname displayed
       expect(screen.getByText('deceptive-login.example.com')).toBeInTheDocument();
 
-      // Plain-text target URL check (NO innerHTML or link element)
+      // Plain-text target URL check (NO innerHTML or link element, sensitive query params stripped)
       const targetUrlElement = screen.getByTestId('blocked-target-url');
-      expect(targetUrlElement.textContent).toBe('https://deceptive-login.example.com/auth?session=xyz');
+      expect(targetUrlElement.textContent).toBe('https://deceptive-login.example.com/auth');
+      expect(targetUrlElement.textContent).not.toContain('session=xyz');
       expect(targetUrlElement.tagName.toLowerCase()).toBe('span');
 
       // Threat score and category
@@ -245,9 +246,9 @@ describe('WarningApp Component', () => {
       // Now enabled
       expect(proceedButton).not.toBeDisabled();
 
-      // Click proceed
+      // Click proceed (must navigate to sanitized destination)
       fireEvent.click(proceedButton);
-      expect(chromeMock.tabs.update).toHaveBeenCalledWith(999, { url: sampleWarning.targetUrl });
+      expect(chromeMock.tabs.update).toHaveBeenCalledWith(999, { url: 'https://deceptive-login.example.com/auth' });
 
       // Cleaned up this tab's record
       expect(chromeMock.storage.session.remove).toHaveBeenCalledWith('warning_test-warning-uuid');
@@ -255,6 +256,42 @@ describe('WarningApp Component', () => {
 
       // Other tab's record remains intact
       expect(sessionStorageStore['warning_other-tab-uuid']).toBeDefined();
+    });
+
+    it('sanitizes contaminated destination stripping credentials, fragments, and sensitive query parameters', async () => {
+      const contaminatedWarning: WarningData = {
+        ...sampleWarning,
+        warningId: 'test-warning-uuid',
+        targetUrl: 'https://admin:supersecret@phish.example.com/login?token=secret999&page=1&apikey=ABC#oauth_token=xyz',
+        hostname: 'phish.example.com',
+      };
+      sessionStorageStore['warning_test-warning-uuid'] = contaminatedWarning;
+
+      render(<WarningApp />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Deceptive or Malicious Site Ahead')).toBeInTheDocument();
+      });
+
+      // Target URL rendered without credentials, fragments, or sensitive tokens
+      const targetUrlElement = screen.getByTestId('blocked-target-url');
+      expect(targetUrlElement.textContent).toBe('https://phish.example.com/login?page=1');
+      expect(targetUrlElement.textContent).not.toContain('admin:supersecret');
+      expect(targetUrlElement.textContent).not.toContain('secret999');
+      expect(targetUrlElement.textContent).not.toContain('ABC');
+      expect(targetUrlElement.textContent).not.toContain('#oauth_token=xyz');
+
+      // Expand advanced and proceed
+      fireEvent.click(screen.getByText(/Advanced: Proceed to unsafe site/i));
+      const checkbox = screen.getByLabelText(/I understand the risks and wish to proceed anyway/i);
+      fireEvent.click(checkbox);
+      const proceedButton = screen.getByRole('button', { name: /Proceed to phish.example.com \(Unsafe\)/i });
+      fireEvent.click(proceedButton);
+
+      // Must navigate to sanitized destination
+      expect(chromeMock.tabs.update).toHaveBeenCalledWith(999, {
+        url: 'https://phish.example.com/login?page=1',
+      });
     });
 
     it('blocks navigation if target URL protocol is not http/https', async () => {

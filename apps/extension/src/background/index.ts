@@ -1,6 +1,7 @@
 import { ExtensionMessage, ExtensionMessageResponse, PageAnalysisResponse, PageAnalysisRequest } from '@site-sentry/shared-types';
 import { submitAnalysis } from '../api/analysisClient';
 import { WarningData } from '../types/warning';
+import { sanitizeUrl } from '../utils/url';
 
 export const storageKey = (tabId: number) => `analysis_${tabId}`;
 export const warningKey = (id: string) => `warning_${id}`;
@@ -10,6 +11,9 @@ export const analysisState = new Map<number, PageAnalysisResponse>();
 
 // Request generation counter per tab to guard against out-of-order stale requests
 export const tabGenerations = new Map<number, number>();
+
+// Active warning IDs associated with tabs for prompt cleanup on tab close
+export const tabWarnings = new Map<number, Set<string>>();
 
 export function generateWarningId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -38,7 +42,11 @@ export async function handleBlockVerdict(
     }
 
     const tab = await chrome.tabs.get(tabId);
-    if (!tab || !tab.url || tab.url !== payload.url) {
+    if (
+      !tab ||
+      !tab.url ||
+      (tab.url !== payload.url && sanitizeUrl(tab.url) !== sanitizeUrl(payload.url))
+    ) {
       // Tab closed, URL cannot be verified, or navigated away before analysis completed
       return;
     }
@@ -46,9 +54,18 @@ export async function handleBlockVerdict(
     const warningId = generateWarningId();
     createdWarningId = warningId;
 
+    // Associate warning with tab for prompt cleanup on tab close
+    if (!tabWarnings.has(tabId)) {
+      tabWarnings.set(tabId, new Set());
+    }
+    tabWarnings.get(tabId)!.add(warningId);
+
+    // Sanitize destination URL before persisting in warning session storage
+    const sanitizedTarget = sanitizeUrl(payload.url) || payload.url;
+
     const warningData: WarningData = {
       warningId,
-      targetUrl: payload.url,
+      targetUrl: sanitizedTarget,
       hostname: payload.hostname,
       score: data.score,
       severity: data.decision.severity,
@@ -64,19 +81,26 @@ export async function handleBlockVerdict(
     // Final navigation race protection immediately before redirecting:
     // 1. Recheck generation
     if (tabGenerations.get(tabId) !== requestGen) {
+      tabWarnings.get(tabId)?.delete(warningId);
       await chrome.storage.session.remove(warningKey(warningId)).catch(() => {});
       return;
     }
 
     // 2. Recheck tab existence and exact URL match
     const currentTab = await chrome.tabs.get(tabId);
-    if (!currentTab || !currentTab.url || currentTab.url !== payload.url) {
+    if (
+      !currentTab ||
+      !currentTab.url ||
+      (currentTab.url !== payload.url && sanitizeUrl(currentTab.url) !== sanitizeUrl(payload.url))
+    ) {
+      tabWarnings.get(tabId)?.delete(warningId);
       await chrome.storage.session.remove(warningKey(warningId)).catch(() => {});
       return;
     }
 
     // 3. Final generation recheck
     if (tabGenerations.get(tabId) !== requestGen) {
+      tabWarnings.get(tabId)?.delete(warningId);
       await chrome.storage.session.remove(warningKey(warningId)).catch(() => {});
       return;
     }
@@ -85,6 +109,7 @@ export async function handleBlockVerdict(
     await chrome.tabs.update(tabId, { url: warningUrl });
   } catch (error) {
     if (createdWarningId) {
+      tabWarnings.get(tabId)?.delete(createdWarningId);
       chrome.storage.session.remove(warningKey(createdWarningId)).catch(() => {});
     }
     console.warn(`[Site Sentry] Failed to redirect tab ${tabId} to warning page:`, error);
@@ -140,7 +165,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
         if (tabGenerations.get(tabId) !== requestGen) {
           return;
         }
-        console.error('Analysis failed:', error);
+        // Sanitized warning log without dumping error object containing raw URLs or secrets
+        console.warn(`[Site Sentry] Analysis request failed for tab ${tabId}`);
 
         // On backend error: set badge background slate and text '!'
         try {
@@ -194,7 +220,18 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabGenerations.delete(tabId);
   analysisState.delete(tabId);
+
+  // 1. Remove analysis_${tabId}
   chrome.storage.session.remove(storageKey(tabId)).catch((error) => {
     console.warn(`[Site Sentry] Failed to clean up session storage for tab ${tabId}:`, error);
   });
+
+  // 2. Remove associated warning_${warningId} entries
+  const associatedWarnings = tabWarnings.get(tabId);
+  if (associatedWarnings) {
+    for (const wId of associatedWarnings) {
+      chrome.storage.session.remove(warningKey(wId)).catch(() => {});
+    }
+    tabWarnings.delete(tabId);
+  }
 });

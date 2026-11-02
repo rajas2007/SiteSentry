@@ -263,6 +263,25 @@ describe('Background Service Worker Persistence and ADR-005 Warnings', () => {
     expect(sessionStorageStore['analysis_404']).toBeUndefined();
   });
 
+  it('clears associated warning records when tab is closed', async () => {
+    const { tabWarnings } = await import('./index');
+    sessionStorageStore['analysis_405'] = sampleResponse;
+    sessionStorageStore['warning_uuid-123'] = { warningId: 'uuid-123', targetUrl: 'https://example.com' };
+
+    if (!tabWarnings.has(405)) {
+      tabWarnings.set(405, new Set());
+    }
+    tabWarnings.get(405)!.add('uuid-123');
+
+    tabRemovedListener(405);
+
+    expect(chromeMock.storage.session.remove).toHaveBeenCalledWith('analysis_405');
+    expect(chromeMock.storage.session.remove).toHaveBeenCalledWith('warning_uuid-123');
+    expect(sessionStorageStore['analysis_405']).toBeUndefined();
+    expect(sessionStorageStore['warning_uuid-123']).toBeUndefined();
+    expect(tabWarnings.has(405)).toBe(false);
+  });
+
   it('prevents an older in-flight request from overwriting a newer analysis (stale request guard)', async () => {
     let resolveRequestA!: (res: PageAnalysisResponse) => void;
     let resolveRequestB!: (res: PageAnalysisResponse) => void;
@@ -555,11 +574,12 @@ describe('Background Service Worker Persistence and ADR-005 Warnings', () => {
       const warningId = new URL(redirectUrl).searchParams.get('id');
       expect(warningId).toBeTruthy();
 
-      // Verify WarningData is stored in session storage under warning_<opaqueId>
+      // Verify WarningData is stored in session storage under warning_<opaqueId> with sanitized destination
       const storedWarning = sessionStorageStore[`warning_${warningId}`] as WarningData;
       expect(storedWarning).toBeDefined();
       expect(storedWarning.warningId).toBe(warningId);
-      expect(storedWarning.targetUrl).toBe('https://threat-site.com/login?token=secret123');
+      expect(storedWarning.targetUrl).toBe('https://threat-site.com/login');
+      expect(storedWarning.targetUrl).not.toContain('secret123');
       expect(storedWarning.hostname).toBe('threat-site.com');
       expect(storedWarning.score).toBe(20);
       expect(storedWarning.severity).toBe('high');

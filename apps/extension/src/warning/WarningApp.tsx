@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ShieldAlert, AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Shield, AlertOctagon } from 'lucide-react';
 import { WarningData } from '../types/warning';
+import { sanitizeUrl } from '../utils/url';
 
 export const WARNING_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes bounded lifetime
 
@@ -47,7 +48,11 @@ export default function WarningApp() {
             chrome.storage.session.remove(key);
             setData(null);
           } else {
-            setData(warning);
+            const cleanTarget = sanitizeUrl(warning.targetUrl) || warning.targetUrl;
+            setData({
+              ...warning,
+              targetUrl: cleanTarget,
+            });
           }
         } else {
           setData(null);
