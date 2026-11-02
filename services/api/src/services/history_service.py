@@ -7,6 +7,7 @@ from src.schemas.scan import (
     ScanHistoryItem,
     ScanHistoryResponse,
 )
+from src.utils.url import prepare_url_for_display
 
 
 class HistoryService:
@@ -37,7 +38,7 @@ class HistoryService:
         items = [
             ScanHistoryItem(
                 id=scan.id,
-                url=scan.full_url,
+                url=prepare_url_for_display(scan.full_url),
                 domain=scan.domain,
                 score=scan.final_security_score,
                 severity=scan.severity,
@@ -68,7 +69,7 @@ class HistoryService:
         # safely handle legacy records where keys might be missing
         return DetailedScanHistoryResponse(
             id=scan.id,
-            url=scan.full_url,
+            url=prepare_url_for_display(scan.full_url),
             domain=scan.domain,
             score=scan.final_security_score,
             severity=scan.severity,

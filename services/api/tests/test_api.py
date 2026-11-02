@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -9,21 +11,26 @@ class InMemoryCache:
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
 
-    async def get_analysis(self, url: str):
+    def _key(self, request_or_url: Any) -> str:
         import hashlib
+
+        url_str = str(getattr(request_or_url, "url", request_or_url))
+        norm = url_str.strip().lower()
+        return hashlib.sha256(norm.encode("utf-8")).hexdigest()
+
+    async def get_analysis(self, request_or_url: Any):
         import json
 
-        norm = url.strip().lower()
-        key = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+        key = self._key(request_or_url)
         raw = self.store.get(key)
         return json.loads(raw) if raw else None
 
-    async def set_analysis(self, url: str, data: dict, ttl: int = 3600) -> bool:
-        import hashlib
+    async def set_analysis(
+        self, request_or_url: Any, data: dict, ttl: int = 3600
+    ) -> bool:
         import json
 
-        norm = url.strip().lower()
-        key = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+        key = self._key(request_or_url)
         self.store[key] = json.dumps(data)
         return True
 
@@ -215,12 +222,13 @@ def test_analyze_caching():
             assert res1.status_code == 200
             data1 = res1.json()
 
-            # Second scan -> cache hit, returns identical analysis_id and score
+            # Second scan -> cache hit, returns fresh analysis_id and identical score
             res2 = test_client.post("/api/v1/analyze", json=payload)
             assert res2.status_code == 200
             data2 = res2.json()
 
-            assert data1["analysis_id"] == data2["analysis_id"]
+            # Fresh analysis_id requirement in B.2.4: never reuse analysis_id on cache hits
+            assert data1["analysis_id"] != data2["analysis_id"]
             assert data1["score"] == data2["score"]
     finally:
         scan_service.cache = original_cache
