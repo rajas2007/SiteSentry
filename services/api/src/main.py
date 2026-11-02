@@ -2,8 +2,10 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.api.analytics import router as analytics_router
@@ -41,14 +43,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="Site Sentry API", version="0.1.0", lifespan=lifespan)
 
-# Allow extension to call backend during MVP
+settings = get_settings()
+cors_origins = [
+    origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()
+]
+# Starlette requires allow_credentials=False when allow_origins=["*"]
+allow_credentials = cors_origins != ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For MVP, later restrict to chrome-extension://
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Sanitize validation errors to prevent reflection of raw URL secrets in HTTP 422 responses."""
+    sanitized_errors = []
+    for err in exc.errors():
+        clean_err = dict(err)
+        clean_err.pop("input", None)
+        clean_err.pop("ctx", None)
+
+        sanitized_errors.append(clean_err)
+    return JSONResponse(status_code=422, content={"detail": sanitized_errors})
+
 
 app.include_router(analyze_router)
 app.include_router(analytics_router)

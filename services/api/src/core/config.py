@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve .env relative to the services/api directory so it loads
@@ -34,6 +35,23 @@ class Settings(BaseSettings):
     GOOGLE_SAFE_BROWSING_API_KEY: str | None = None
     VIRUSTOTAL_API_KEY: str | None = None
     THREAT_INTEL_TIMEOUT_SECONDS: float = 2.5
+
+    # CORS origins (comma-separated, e.g. "https://dashboard.example.com,chrome-extension://<id>")
+    CORS_ORIGINS: str = "*"
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.API_ENV.lower() == "production" and (
+            not self.SECRET_KEY
+            or not self.SECRET_KEY.strip()
+            or self.SECRET_KEY == "default_development_secret"
+            or len(self.SECRET_KEY.strip()) < 32
+        ):
+            raise ValueError(
+                "In production (API_ENV=production), SECRET_KEY must be a strong, "
+                "non-default secret of at least 32 characters."
+            )
+        return self
 
     @property
     def database_dialect(self) -> str:
